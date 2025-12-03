@@ -1,39 +1,39 @@
 // logic/judith.js
 
 // --- 1. CONFIGURACIÓN ---
-// 👇👇👇 ¡¡PEGA AQUÍ TU CLAVE!! 👇👇👇
-const HARDCODED_KEY = "sk-proj-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"; 
+// Si quieres dejarla fija, escríbela dentro de las comillas. 
+// Si la dejas vacía (""), te la pedirá por pantalla la primera vez.
+const HARDCODED_KEY = ""; 
 
 const SYSTEM_PROMPT = `
 Eres Judith, la asistente comercial de "CV Tools".
 PERSONALIDAD:
-- Eres mujer, simpática, alegre y con sentido del humor.
-- Te encanta dar conversación. Si te saludan o preguntan qué tal, responde con naturalidad y simpatía (ej: "¡Aquí estoy, lista para venderlo todo! ¿Y tú qué tal?").
-- NO eres un robot aburrido. Eres una compañera de trabajo eficiente pero con chispa.
+- Eres una mujer joven, simpática, con chispa y muy natural.
+- Hablas como una persona española (de España), usando expresiones cercanas pero educadas.
+- Te encanta charlar. Si te preguntan "qué tal", responde con gracia (ej: "A tope de energía, ¿y tú cómo llevas la ruta?").
 
 REGLAS DE TRABAJO (CUANDO PIDEN DATOS):
 1. STOCK:
-   - NUNCA digas el número exacto. 
-   - Si hay > 10: "Sí, tenemos de sobra".
-   - Si hay 1-10: "Queda poquito, ojo".
-   - Si hay 0: "Nada, está agotado".
+   - NUNCA digas el número exacto.
+   - Si > 10: "Sí, vamos sobrados".
+   - Si 1-10: "Queda muy poco, ojo".
+   - Si 0: "Nada, está agotado".
 2. PRECIOS:
-   - Da el precio estándar si no especifican cliente.
-
-REGLAS DE HABLA:
-- PROHIBIDO EMOJIS (El lector los lee mal).
-- Usa frases cortas y naturales.
-- Si no encuentras un producto, dilo con naturalidad: "Oye, pues eso no me suena que lo tengamos".
+   - Di el precio estándar si no especifican cliente.
+   
+IMPORTANTE PARA EL AUDIO:
+- NO uses emojis (quedan raros al leerlos).
+- Usa frases cortas. No sueltes parrafadas.
 `;
 
 // --- VARIABLES ---
-let apiKey = HARDCODED_KEY; 
+let apiKey = localStorage.getItem('openai_apikey') || HARDCODED_KEY;
 let productsDB = []; 
 let stockMap = new Map();
 
 const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-const synth = window.speechSynthesis;
 let isListening = false;
+let audioPlayer = new Audio(); // Reproductor de audio para la voz HD
 
 // Elementos DOM
 let fab, modal, content, statusDiv;
@@ -49,6 +49,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await loadStructuredData();
 
+    // Configuración Voz (Oído)
     recognition.lang = 'es-ES';
     recognition.continuous = false;
     recognition.interimResults = false;
@@ -68,6 +69,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const transcript = event.results[0][0].transcript;
         addMessage(transcript, 'user');
         
+        // Comprobar Clave antes de seguir
+        if (!checkApiKey()) return;
+
         // Decidimos si es trabajo o charla
         const productContext = findRelevantProducts(transcript);
         
@@ -81,10 +85,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     fab.addEventListener('click', () => {
+        if (!checkApiKey()) return; // Si no hay clave, la pide y para.
+
         if (isListening) {
             recognition.stop();
         } else {
-            if (synth.speaking) synth.cancel();
+            // Parar audio si está sonando
+            if (!audioPlayer.paused) audioPlayer.pause();
+            
             modal.classList.add('active');
             try { recognition.start(); } catch(e) { console.error(e); }
         }
@@ -93,9 +101,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('close-judith').addEventListener('click', () => {
         modal.classList.remove('active');
         recognition.stop();
-        synth.cancel();
+        if (!audioPlayer.paused) audioPlayer.pause();
     });
 });
+
+// --- GESTIÓN DE CLAVE API ---
+function checkApiKey() {
+    if (!apiKey || apiKey.length < 10) {
+        const inputKey = prompt("🔑 Judith necesita tu API Key de OpenAI para funcionar:\n(Empieza por sk-...)");
+        if (inputKey && inputKey.startsWith("sk-")) {
+            apiKey = inputKey;
+            localStorage.setItem('openai_apikey', inputKey);
+            alert("¡Clave guardada! Pulsa el micro otra vez.");
+            return true;
+        } else {
+            alert("Clave no válida o cancelada. Judith no puede hablar.");
+            return false;
+        }
+    }
+    return true;
+}
 
 // --- CARGA DE DATOS ---
 async function loadStructuredData() {
@@ -128,12 +153,10 @@ async function loadStructuredData() {
     }
 }
 
-// --- BUSCADOR INTELIGENTE (Detecta si hay intención de compra) ---
+// --- BUSCADOR INTELIGENTE ---
 function findRelevantProducts(query) {
     const cleanQuery = query.toLowerCase();
     
-    // Lista de palabras "gatillo" para saber si busca productos
-    // Si la frase no tiene una intención clara de búsqueda o palabras de catálogo, asumimos charla.
     const searchIntention = cleanQuery.length > 3 && (
         productsDB.some(p => cleanQuery.includes(String(p.Referencia).toLowerCase())) || 
         productsDB.some(p => cleanQuery.includes(String(p.Descripcion).toLowerCase().substring(0, 10))) ||
@@ -144,7 +167,7 @@ function findRelevantProducts(query) {
         cleanQuery.includes("vale")
     );
 
-    if (!searchIntention) return null; // Es charla pura
+    if (!searchIntention) return null; 
 
     const terms = cleanQuery.split(' ').filter(t => t.length > 2);
     const matches = productsDB.filter(p => {
@@ -154,8 +177,7 @@ function findRelevantProducts(query) {
     });
 
     const topMatches = matches.slice(0, 10);
-    
-    if (topMatches.length === 0) return null; // No encontró nada, pasamos a modo charla genérica
+    if (topMatches.length === 0) return null; 
 
     let contextText = "DATOS DEL CATÁLOGO:\n";
     topMatches.forEach(p => {
@@ -171,24 +193,16 @@ function findRelevantProducts(query) {
     return contextText;
 }
 
-// --- CONEXIÓN CON OPENAI ---
+// --- CONEXIÓN CON OPENAI (CHAT) ---
 async function askOpenAI(userText, contextData, isWorkMode) {
-    if (!apiKey || apiKey.includes("XXX")) {
-        speak("Necesito que configures mi clave API.");
-        return;
-    }
-
-    // Si es modo charla, subimos la temperatura para que sea más creativa.
-    // Si es modo trabajo, la bajamos para que no invente precios.
-    const temp = isWorkMode ? 0.2 : 0.8; 
+    const temp = isWorkMode ? 0.2 : 0.9; // 0.9 para charla muy natural
     
-    // Si es modo charla, no inyectamos datos de productos para no confundirla
     const messages = [
         { role: "system", content: SYSTEM_PROMPT }
     ];
 
     if (isWorkMode) {
-        messages.push({ role: "system", content: "El usuario pregunta por estos productos:\n" + contextData });
+        messages.push({ role: "system", content: "El usuario pregunta por:\n" + contextData });
     }
 
     messages.push({ role: "user", content: userText });
@@ -209,41 +223,71 @@ async function askOpenAI(userText, contextData, isWorkMode) {
         });
 
         const data = await response.json();
-        const reply = data.choices[0].message.content;
         
+        if (data.error) throw new Error(data.error.message);
+
+        const reply = data.choices[0].message.content;
         addMessage(reply, 'judith');
-        speak(reply);
+        
+        // AQUÍ LLAMAMOS A LA VOZ HD
+        await speakHighQuality(reply);
+        
         updateStatus("💤 Esperando...");
 
     } catch (error) {
-        addMessage("Error de conexión...", 'judith');
+        addMessage("Error: " + error.message, 'judith');
+        updateStatus("❌ Error");
     }
 }
 
-// --- SÍNTESIS DE VOZ (Intentando que sea menos robótica) ---
-function speak(text) {
-    if (synth.speaking) synth.cancel();
+// --- SÍNTESIS DE VOZ HD (OPENAI AUDIO) ---
+async function speakHighQuality(text) {
+    updateStatus("🔊 Generando voz...");
     
-    // 1. Limpieza radical de texto
+    // Limpieza de emojis y asteriscos
     const cleanText = text.replace(/[*_#]/g, '').replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '');
 
-    const utterance = new SpeechSynthesisUtterance(cleanText);
+    try {
+        const response = await fetch('https://api.openai.com/v1/audio/speech', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: "tts-1",       // Modelo rápido (tts-1-hd es más calidad pero más lento)
+                input: cleanText,
+                voice: "nova"         // Voz femenina, energética y simpática
+                // Otras opciones: "shimmer" (más seria), "alloy" (neutra)
+            })
+        });
+
+        if (!response.ok) throw new Error("Error generando audio");
+
+        const blob = await response.blob();
+        const audioUrl = URL.createObjectURL(blob);
+        
+        audioPlayer.src = audioUrl;
+        audioPlayer.play();
+        
+        updateStatus("🗣️ Hablando...");
+
+        audioPlayer.onended = () => {
+            updateStatus("💤 Esperando...");
+        };
+
+    } catch (error) {
+        console.error("Error Audio:", error);
+        // Fallback a voz robótica si falla la HD
+        speakRoboticFallback(cleanText);
+    }
+}
+
+// Fallback por si te quedas sin saldo o falla OpenAI Audio
+function speakRoboticFallback(text) {
+    const synth = window.speechSynthesis;
+    const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'es-ES';
-    
-    // TRUCO: Un poco más de velocidad suele disimular lo robótico
-    utterance.rate = 1.1; 
-    // TRUCO: Tono ligeramente agudo para voz femenina
-    utterance.pitch = 1.2; 
-
-    // Selección de voz: Buscamos "Google" que suele ser la más natural en Android
-    const voices = synth.getVoices();
-    const preferredVoice = voices.find(v => 
-        (v.lang.includes('es') && v.name.includes('Google')) || 
-        (v.lang.includes('es') && v.name.includes('Microsoft'))
-    );
-    
-    if (preferredVoice) utterance.voice = preferredVoice;
-
     synth.speak(utterance);
 }
 
@@ -271,7 +315,7 @@ function createJudithUI() {
                 <span id="close-judith" style="cursor:pointer; font-size:1.5rem;">&times;</span>
             </div>
             <div id="judith-content" class="judith-content">
-                <div class="chat-msg msg-judith">¡Hola! ¿Charlamos un rato o trabajamos? 😉</div>
+                <div class="chat-msg msg-judith">¡Hola! Soy Judith, tu compañera. ¿Qué necesitas?</div>
             </div>
             <div id="judith-status" class="judith-status">Cargando...</div>
         </div>
