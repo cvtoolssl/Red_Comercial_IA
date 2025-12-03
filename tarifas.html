@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Descarga de Tarifas - CV Tools</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <img src="img/cvtools.png" alt="CV Tools Logo" class="main-logo">
+            <h1>Descarga de Tarifas</h1>
+        </header>
+
+        <main>
+            <div class="content-box">
+                <h2>Opción 1: Descarga en formato Excel (.xlsx)</h2>
+                <p>Descarga la tarifa completa en un archivo Excel. Estos enlaces siempre proporcionan la versión más reciente de los datos.</p>
+                
+                <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vQlPJiZhA4iVRzu6aJdMqf0yUHfE-MGwwt40BMuB8zmeAzDeZ4oDA8TJaAsyiVfLHOnO2s78rsc1Jez/pub?gid=351635619&single=true&output=tsv" class="download-button excel">Excel Tarifa General</a>
+                <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vQlPJiZhA4iVRzu6aJdMqf0yUHfE-MGwwt40BMuB8zmeAzDeZ4oDA8TJaAsyiVfLHOnO2s78rsc1Jez/pub?gid=50344024&single=true&output=tsv" class="download-button excel">Excel Tarifa BigMat</a>
+                <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vQlPJiZhA4iVRzu6aJdMqf0yUHfE-MGwwt40BMuB8zmeAzDeZ4oDA8TJaAsyiVfLHOnO2s78rsc1Jez/pub?gid=2023173679&single=true&output=tsv" class="download-button excel">Excel Tarifa Neopro</a>
+                <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vQlPJiZhA4iVRzu6aJdMqf0yUHfE-MGwwt40BMuB8zmeAzDeZ4oDA8TJaAsyiVfLHOnO2s78rsc1Jez/pub?gid=1722640965&single=true&output=tsv" class="download-button excel">Excel Tarifa Ehlis</a>
+                <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vQlPJiZhA4iVRzu6aJdMqf0yUHfE-MGwwt40BMuB8zmeAzDeZ4oDA8TJaAsyiVfLHOnO2s78rsc1Jez/pub?gid=1182020552&single=true&output=tsv" class="download-button excel">Excel Tarifa Cecofersa</a>
+                <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vQlPJiZhA4iVRzu6aJdMqf0yUHfE-MGwwt40BMuB8zmeAzDeZ4oDA8TJaAsyiVfLHOnO2s78rsc1Jez/pub?gid=1137452250&single=true&output=tsv" class="download-button excel">Excel Tarifa Synergas</a>
+                <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vQlPJiZhA4iVRzu6aJdMqf0yUHfE-MGwwt40BMuB8zmeAzDeZ4oDA8TJaAsyiVfLHOnO2s78rsc1Jez/pub?gid=372256826&single=true&output=tsv" class="download-button excel">Excel Tarifa Grandes Cuentas</a>
+                <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vQlPJiZhA4iVRzu6aJdMqf0yUHfE-MGwwt40BMuB8zmeAzDeZ4oDA8TJaAsyiVfLHOnO2s78rsc1Jez/pub?gid=1356324811&single=true&output=tsv" class="download-button excel">Excel Tarifa Coferdroza</a>
+                <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vQlPJiZhA4iVRzu6aJdMqf0yUHfE-MGwwt40BMuB8zmeAzDeZ4oDA8TJaAsyiVfLHOnO2s78rsc1Jez/pub?gid=1182020552&single=true&output=tsv" class="download-button excel">Excel Tarifa Industrial Pro</a>
+            </div>
+
+            <div class="content-box">
+                <h2>Opción 2: Generar y Descargar en formato PDF</h2>
+                <p>Crea un PDF al instante con una tabla de precios desglosada y lista para enviar. La generación puede tardar unos segundos.</p>
+                <button id="pdf-general" class="download-button pdf">PDF Tarifa General</button>
+                <button id="pdf-bigmat" class="download-button pdf">PDF Tarifa BigMat</button>
+                <button id="pdf-neopro" class="download-button pdf">PDF Tarifa Neopro</button>
+                <button id="pdf-ehlis" class="download-button pdf">PDF Tarifa Ehlis</button>
+                <button id="pdf-cecofersa" class="download-button pdf">PDF Tarifa Cecofersa</button>
+                <button id="pdf-synergas" class="download-button pdf">PDF Tarifa Synergas</button>
+                <button id="pdf-grandes-cuentas" class="download-button pdf">PDF Tarifa Grandes Cuentas</button>
+                <button id="pdf-coferdroza" class="download-button pdf">PDF Tarifa Coferdroza</button>
+                <!-- BOTÓN NUEVO -->
+                <button id="pdf-industrial-pro" class="download-button pdf">PDF Tarifa Industrial Pro</button>
+            </div>
+            
+            <a href="index.html" class="back-link">← Volver al menú principal</a>
+        </main>
+    </div>
+
+    <!-- Librerías para generar PDFs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    
+    <script src="logic/tarifas.js"></script>
+</body>
+</html>

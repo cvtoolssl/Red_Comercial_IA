@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal de Herramientas - CV Tools</title>
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Estilos específicos para los botones flotantes y el disclaimer -->
+    <style>
+        /* --- ESTILOS DEL DISCLAIMER COLABORATIVO --- */
+        .collaborative-note {
+            background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+            color: #5e3a07;
+            padding: 1.5rem;
+            border-radius: 16px;
+            text-align: center;
+            margin: 2rem 0;
+            box-shadow: 0 4px 15px rgba(253, 160, 133, 0.4);
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        .collaborative-note h3 {
+            margin: 0 0 10px 0;
+            font-size: 1.3rem;
+        }
+        .collaborative-note p {
+            margin: 0;
+            font-size: 1rem;
+            font-weight: 500;
+        }
+
+        /* --- ESTILOS DE BOTONES FLOTANTES (FAB) --- */
+        .fab-container {
+            position: fixed;
+            bottom: 25px;
+            right: 25px;
+            display: flex;
+            flex-direction: column-reverse; /* Se apilan hacia arriba */
+            gap: 15px;
+            z-index: 9999;
+            align-items: flex-end;
+        }
+
+        .fab-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            text-decoration: none;
+            transition: transform 0.2s, box-shadow 0.2s;
+            color: white;
+        }
+
+        .fab-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+        }
+
+        .fab-btn svg {
+            width: 30px;
+            height: 30px;
+            fill: currentColor;
+        }
+
+        /* Colores específicos */
+        .fab-whatsapp {
+            background-color: #25D366; /* Verde WhatsApp */
+        }
+        .fab-phone {
+            background-color: #007aff; /* Azul Teléfono */
+        }
+
+        /* Etiqueta flotante (Tooltip) opcional al lado del botón */
+        .fab-label {
+            position: absolute;
+            right: 70px;
+            background-color: rgba(0,0,0,0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        .fab-btn:hover .fab-label {
+            opacity: 1;
+        }
+
+        /* Ajuste para que el footer no tape los botones en scroll final */
+        body {
+            padding-bottom: 100px; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <img src="img/cvtools.png" alt="CV Tools Logo" class="main-logo">
+            <h1>Portal de Herramientas</h1>
+        </header>
+
+        <main class="menu-grid">
+            <!-- Enlace a las instrucciones de Alta de Cliente -->
+            <a href="enviar_alta.html" class="menu-card card-7">
+                <h2>Alta de Nuevos Clientes</h2>
+                <p>Instrucciones para enviar el enlace de alta a un nuevo cliente.</p>
+            </a>
+            
+            <a href="precios.html" class="menu-card card-1">
+                <h2>Buscador, Stock y Presupuestos</h2>
+                <p>Consulta precios y stock (actualizado 09:00 AM). Crea pedidos y compártelos por WhatsApp.</p>
+            </a>
+
+            <a href="fichas.html" class="menu-card card-5">
+                <h2>Buscador de Fichas Técnicas</h2>
+                <p>Encuentra y descarga las fichas técnicas por referencia o descripción.</p>
+            </a>
+            <a href="https://drive.google.com/file/d/1hGIb-8DpEWCIAgVW5xJ3a23ugO5PZuOO/view?usp=sharing" class="menu-card card-6" target="_blank">
+                <h2>Descarga de Catálogo</h2>
+                <p>Descarga el catálogo general completo de productos en formato PDF.</p>
+            </a>
+            <a href="tarifas.html" class="menu-card card-3">
+                <h2>Descarga de Tarifas</h2>
+                <p>Genera y descarga las listas de precios completas en formato PDF.</p>
+            </a>
+            <a href="garantias.html" class="menu-card card-2">
+                <h2>Gestión de Garantías</h2>
+                <p>Instrucciones para la gestión de reclamaciones de clientes.</p>
+            </a>
+        </main>
+
+        <!-- DISCLAIMER COLABORATIVO -->
+        <div class="collaborative-note">
+            <h3>🚀 Herramienta Colaborativa</h3>
+            <p>Esta aplicación está viva y en constante mejora. Vuestro feedback es esencial para seguir evolucionando.</p>
+            <p style="margin-top: 5px; font-weight: 700;">¡Queremos crecer juntos!</p>
+        </div>
+
+        <footer class="site-footer">
+            <p>&copy; <span id="year"></span> CVTools. Todos los derechos reservados.</p>
+        </footer>
+    </div>
+
+    <!-- BOTONES FLOTANTES DE CONTACTO -->
+    <div class="fab-container">
+        
+        <!-- Botón WhatsApp -->
+        <a href="https://wa.me/34670315792" class="fab-btn fab-whatsapp" target="_blank" title="Enviar WhatsApp">
+            <!-- Icono WhatsApp SVG -->
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+                <path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.898 7.898 0 0 0 13.6 2.326zM7.994 14.521a6.573 6.573 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592zm3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.729.729 0 0 0-.529.247c-.182.198-.691.677-.691 1.654 0 .977.71 1.916.81 2.049.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232z"/>
+            </svg>
+        </a>
+
+        <!-- Botón Teléfono -->
+        <a href="tel:962920132" class="fab-btn fab-phone" title="Llamar a CV Tools">
+            <!-- Icono Teléfono SVG -->
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+                <path fill-rule="evenodd" d="M1.885.511a1.745 1.745 0 0 1 2.61.163L6.29 2.98c.329.423.445.974.315 1.494l-.547 2.19a.678.678 0 0 0 .178.643l2.457 2.457a.678.678 0 0 0 .644.178l2.189-.547a1.745 1.745 0 0 1 1.494.315l2.306 1.794c.829.645.905 1.87.163 2.611l-1.034 1.034c-.74.74-1.846 1.065-2.877.702a18.634 18.634 0 0 1-7.01-4.42 18.634 18.634 0 0 1-4.42-7.009c-.362-1.03-.037-2.137.703-2.877L1.885.511z"/>
+            </svg>
+        </a>
+    </div>
+
+    <script>
+        document.getElementById('year').textContent = new Date().getFullYear();
+    </script>
+</body>
+</html>

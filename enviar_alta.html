@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enviar Enlace de Alta - CV Tools</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="page-alta-cliente">
+    <div class="container">
+        <header>
+            <img src="img/cvtools.png" alt="CV Tools Logo" class="main-logo">
+            <h1>Enviar Formulario de Alta a Cliente</h1>
+        </header>
+
+        <main class="content-box">
+            <h2>Instrucciones para el Comercial</h2>
+            <p>Copia el siguiente enlace y envíaselo al nuevo cliente. Este enlace les llevará al nuevo portal de registro donde podrán rellenar sus datos y generar la documentación.</p>
+            
+            <div class="link-box">
+                <!-- 🔴 IMPORTANTE: AQUÍ PEGA LA URL DE TU NUEVO REPOSITORIO/PROYECTO DE ALTA -->
+                <!-- Ejemplo: https://tu-usuario.github.io/nuevo-proyecto-alta/ -->
+                <input type="text" value="https://cvtoolssl.github.io/Alta_Cliente/" id="claim-link" readonly>
+                
+                <button id="copy-button">Copiar Enlace</button>
+            </div>
+            <p id="copy-feedback" class="feedback-hidden">¡Enlace copiado!</p>
+            
+            <a href="index.html" class="back-link">← Volver al menú principal</a>
+        </main>
+    </div>
+
+    <script>
+        const copyButton = document.getElementById('copy-button');
+        const linkInput = document.getElementById('claim-link');
+        const feedback = document.getElementById('copy-feedback');
+
+        copyButton.addEventListener('click', () => {
+            linkInput.select();
+            linkInput.setSelectionRange(0, 99999); // Para móviles
+            
+            // API moderna de portapapeles (más segura y fiable)
+            navigator.clipboard.writeText(linkInput.value).then(() => {
+                feedback.classList.remove('feedback-hidden');
+                setTimeout(() => {
+                    feedback.classList.add('feedback-hidden');
+                }, 2000);
+            }).catch(err => {
+                console.error('Error al copiar: ', err);
+                // Fallback antiguo si falla la API moderna
+                document.execCommand('copy');
+            });
+        });
+    </script>
+</body>
+</html>

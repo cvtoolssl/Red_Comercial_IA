@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buscador de Precios - CV Tools</title>
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- LIBRERÍAS PARA GENERAR PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body class="page-precios">
+    
+    <!-- LOGO OCULTO PARA EL PDF -->
+    <img id="logo-for-pdf" src="img/cvtools.png" alt="Logo" style="display: none;">
+
+    <div class="container">
+        <header>
+            <img src="img/cvtools.png" alt="CV Tools Logo" class="main-logo">
+            <h1>Buscador de Precios y Stock</h1>
+        </header>
+
+        <main>
+            <div id="search-wrapper">
+                 <!-- Selector de Tarifas -->
+                 <div class="tariff-selector-wrapper">
+                    <label for="tariffSelector">Selecciona una Tarifa:</label>
+                    <select id="tariffSelector">
+                        <option value="Tarifa_General.json" selected>Tarifa General</option>
+                        <option value="Tarifa_Bigmat.json">Tarifa BigMat</option>
+                        <option value="Tarifa_Neopro.json">Tarifa Neopro</option>
+                        <option value="Tarifa_Ehlis.json">Tarifa Ehlis</option>
+                        <option value="Tarifa_Cecofersa.json">Tarifa Cecofersa</option>
+                        <option value="Tarifa_Synergas.json">Tarifa Synergas</option>
+                        <option value="Tarifa_Grandes_Cuentas.json">Tarifa Grandes Cuentas</option>
+                        <option value="Tarifa_Coferdroza.json">Tarifa Coferdroza</option>
+                        <!-- NUEVA OPCIÓN -->
+                        <option value="Tarifa_IndustrialPro.json">Tarifa Industrial Pro</option>
+                    </select>
+                 </div>
+
+                 <!-- Campo de Búsqueda -->
+                 <input type="text" id="searchInput" placeholder="Buscar por referencia o descripción...">
+                 
+                 <!-- Disclaimer de Stock -->
+                 <p class="stock-disclaimer">
+                    ℹ️ <strong>Información de Stock:</strong> La disponibilidad se actualiza diariamente a las 09:00 AM.
+                 </p>
+            </div>
+
+            <!-- Contenedor de Resultados -->
+            <div id="resultsContainer"></div>
+            
+            <a href="index.html" class="back-link">← Volver al menú principal</a>
+        </main>
+    </div>
+
+    <!-- BOTÓN FLOTANTE DEL PRESUPUESTO (FAB) -->
+    <div id="budget-fab" class="budget-fab" onclick="toggleBudgetModal()">
+        🛒 <span id="budget-count">0</span>
+    </div>
+
+    <!-- VENTANA MODAL DEL PRESUPUESTO -->
+    <div id="budget-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-modal" onclick="toggleBudgetModal()">&times;</span>
+            <h2>Mi Presupuesto</h2>
+            
+            <!-- Lista de artículos -->
+            <div id="budget-items-container">
+                <p class="empty-msg">No hay productos en el presupuesto.</p>
+            </div>
+            
+            <!-- Pie del presupuesto -->
+            <div class="budget-footer">
+                <p class="total-display">Total: <span id="budget-total">0.00</span> €</p>
+                <div class="budget-actions">
+                    <button onclick="clearBudget()" class="btn-danger">Borrar</button>
+                    <!-- BOTÓN PDF -->
+                    <button onclick="downloadBudgetPdf()" class="btn-primary">Descargar PDF</button>
+                    <button onclick="copyBudgetToClipboard()" class="btn-success">WhatsApp</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 1. Lógica del presupuesto -->
+    <script src="logic/presupuesto.js"></script>
+    
+    <!-- 2. Script principal -->
+    <script src="logic/script.js"></script>
+</body>
+</html>

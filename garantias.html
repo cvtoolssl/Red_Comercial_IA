@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Garantías - CV Tools</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="page-garantias">
+    <div class="container">
+        <header>
+            <img src="img/cvtools.png" alt="CV Tools Logo" class="main-logo">
+            <h1>Instrucciones para Garantías</h1>
+        </header>
+
+        <main class="content-box">
+             <!-- (El resto del contenido no cambia) -->
+            <h2>Para el Comercial</h2>
+            <p>Copia el siguiente enlace y envíaselo a los clientes para que puedan gestionar sus reclamaciones y garantías directamente:</p>
+            <div class="link-box">
+                <input type="text" value="https://pablo2vbng.github.io/ReclamacionesCVTools/" id="claim-link" readonly>
+                <button id="copy-button">Copiar Enlace</button>
+            </div>
+            <p id="copy-feedback" class="feedback-hidden">¡Enlace copiado!</p>
+            <a href="index.html" class="back-link">← Volver al menú principal</a>
+        </main>
+    </div>
+    <script>
+        /* (El script de copiar no cambia) */
+        const copyButton = document.getElementById('copy-button');
+        const linkInput = document.getElementById('claim-link');
+        const feedback = document.getElementById('copy-feedback');
+        copyButton.addEventListener('click', () => {
+            linkInput.select();
+            document.execCommand('copy');
+            feedback.classList.remove('feedback-hidden');
+            setTimeout(() => { feedback.classList.add('feedback-hidden'); }, 2000);
+        });
+    </script>
+</body>
+</html>
