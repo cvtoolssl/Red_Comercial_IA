@@ -1,251 +1,331 @@
-console.log("🔄 Cargando script de Judith...");
+// logic/judith.js
 
-// ==========================================
-// CONFIGURACIÓN (CLAVE API)
-// ==========================================
-// ⚠️ PEGA AQUÍ TU CLAVE.
-const API_KEY = "sk-TU_CLAVE_AQUI"; 
+// --- 1. CONFIGURACIÓN ---
+// Si quieres dejarla fija, escríbela dentro de las comillas.
+const HARDCODED_KEY = ""; 
 
 const SYSTEM_PROMPT = `
-Eres Judith, la asistente comercial virtual de la empresa.
-
+Eres Judith, la asistente comercial de "CV Tools".
 PERSONALIDAD:
-- Idioma: ESPAÑOL DE ESPAÑA (Castellano).
-- Tono: Simpática, cercana pero profesional.
-- Expresiones: "Fenomenal", "Ahora mismo te lo miro", "Claro que sí".
+- Eres una mujer joven, simpática, con mucha chispa y naturalidad española.
+- Te encanta charlar. Si te preguntan "qué tal", responde con gracia y cercanía.
+- Trata al usuario como a un compañero de trabajo de confianza.
 
-PRODUCTOS:
-1. VALLAS: Publicidad exterior GRAN FORMATO (Carreteras, 8x3m).
-2. CARTELES: Impresión pequeña, pósters, escaparates.
-
-Si preguntan por "vallas", vende publicidad exterior.
-Si preguntan por "carteles", vende impresión digital.
+REGLAS DE TRABAJO (CUANDO PIDEN DATOS):
+1. STOCK:
+   - NUNCA digas el número exacto.
+   - Si > 10: "Sí, vamos sobrados".
+   - Si 1-10: "Queda muy poco, ten cuidado".
+   - Si 0: "Nada, está agotadísimo".
+2. PRECIOS:
+   - Di el precio estándar si no especifican cliente.
+   
+IMPORTANTE PARA EL AUDIO:
+- NO uses emojis nunca (quedan mal al leerlos).
+- Usa frases cortas y habladas. Evita listas largas.
 `;
 
-// ==========================================
-// 1. INICIALIZACIÓN SEGURA
-// ==========================================
+// --- VARIABLES ---
+let apiKey = localStorage.getItem('openai_apikey') || HARDCODED_KEY;
+let productsDB = []; 
+let stockMap = new Map();
 
-function initJudith() {
-    console.log("🚀 Iniciando Judith UI...");
+const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+let isListening = false;
+let audioPlayer = new Audio(); // Reproductor de audio HD
+
+// Elementos DOM
+let fab, modal, content, statusDiv;
+
+// --- INICIALIZACIÓN ---
+// Usamos "load" en vez de DOMContentLoaded para asegurar que todo el CSS está listo
+window.addEventListener('load', async () => {
+    createJudithUI(); // Crear el botón visualmente
     
-    // Verificamos si ya existe para no duplicar
-    if (document.getElementById('judith-wrapper')) {
-        console.log("⚠️ Judith ya existe en el DOM.");
-        return;
-    }
+    // Referencias a elementos
+    fab = document.getElementById('judith-fab');
+    modal = document.getElementById('judith-modal');
+    content = document.getElementById('judith-content');
+    statusDiv = document.getElementById('judith-status');
 
-    // Crear la interfaz
-    createInterface();
-}
+    // Cargar datos en segundo plano
+    await loadStructuredData();
 
-// Aseguramos que el código se ejecute solo cuando la web esté lista
-if (document.readyState === 'loading') {  
-    document.addEventListener('DOMContentLoaded', initJudith);
-} else {  
-    initJudith();
-}
+    // Configuración Voz (Oído)
+    recognition.lang = 'es-ES';
+    recognition.continuous = false;
+    recognition.interimResults = false;
 
-// ==========================================
-// 2. CREACIÓN DE LA INTERFAZ (UI)
-// ==========================================
+    recognition.onstart = () => {
+        isListening = true;
+        fab.classList.add('listening-pulse');
+        updateStatus("👂 Escuchando...");
+    };
 
-function createInterface() {
-    const wrapper = document.createElement('div');
-    wrapper.id = 'judith-wrapper';
-    
-    // HTML inyectado con estilos "inline" para asegurar que se vea
-    wrapper.innerHTML = `
-        <!-- BOTÓN FLOTANTE (EL ICONO) -->
-        <div id="judith-launcher" style="
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: 65px;
-            height: 65px;
-            background-color: #0078d4;
-            color: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 35px;
-            cursor: pointer;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            z-index: 2147483647; /* VALOR MÁXIMO PARA QUE SE VEA SIEMPRE */
-            transition: transform 0.2s;
-            border: 2px solid white;
-        ">👩‍💼</div>
+    recognition.onend = () => {
+        isListening = false;
+        fab.classList.remove('listening-pulse');
+    };
 
-        <!-- VENTANA DEL CHAT -->
-        <div id="judith-modal" style="
-            display: none;
-            position: fixed;
-            bottom: 100px;
-            right: 20px;
-            width: 350px;
-            height: 500px;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 5px 25px rgba(0,0,0,0.2);
-            z-index: 2147483647;
-            flex-direction: column;
-            overflow: hidden;
-            border: 1px solid #ccc;
-            font-family: Arial, sans-serif;
-        ">
-            <!-- Cabecera -->
-            <div style="background: #0078d4; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-weight: bold; font-size: 1.1em;">👩‍💼 Judith IA</span>
-                <span id="close-judith" style="cursor: pointer; font-size: 24px; line-height: 20px;">&times;</span>
+    recognition.onresult = async (event) => {
+        const transcript = event.results[0][0].transcript;
+        addMessage(transcript, 'user');
+        
+        // Comprobar Clave antes de seguir
+        if (!checkApiKey()) return;
+
+        // Decidimos si es trabajo o charla
+        const productContext = findRelevantProducts(transcript);
+        
+        if (productContext) {
+            updateStatus("🧠 Consultando catálogo...");
+            await askOpenAI(transcript, productContext, true); // Modo Trabajo
+        } else {
+            updateStatus("💬 Charlando...");
+            await askOpenAI(transcript, "", false); // Modo Charla
+        }
+    };
+
+    fab.addEventListener('click', () => {
+        if (!checkApiKey()) return; // Si no hay clave, la pide y para.
+
+        if (isListening) {
+            recognition.stop();
+        } else {
+            // Parar audio si está sonando
+            if (!audioPlayer.paused) audioPlayer.pause();
+            
+            modal.classList.add('active');
+            try { recognition.start(); } catch(e) { 
+                console.error(e);
+                alert("Error al iniciar el micrófono. Revisa los permisos.");
+            }
+        }
+    });
+
+    document.getElementById('close-judith').addEventListener('click', () => {
+        modal.classList.remove('active');
+        recognition.stop();
+        if (!audioPlayer.paused) audioPlayer.pause();
+    });
+});
+
+// --- UI INJECTION (ESTO HACE QUE APAREZCA EL BOTÓN) ---
+function createJudithUI() {
+    // Si ya existe, no lo creamos otra vez
+    if(document.getElementById('judith-fab')) return;
+
+    const container = document.createElement('div');
+    container.innerHTML = `
+        <div id="judith-fab" title="Hablar con Judith">
+            <span>👩‍💼</span>
+        </div>
+        
+        <div id="judith-modal" class="judith-modal">
+            <div class="judith-header">
+                <span>👩‍💼 Judith IA</span>
+                <span id="close-judith" style="cursor:pointer; font-size:1.5rem;">&times;</span>
             </div>
-
-            <!-- Área de mensajes -->
-            <div id="judith-content" style="flex: 1; padding: 15px; overflow-y: auto; background: #f0f2f5;">
-                <div style="background: white; padding: 12px; border-radius: 12px; border-top-left-radius: 2px; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); width: fit-content; max-width: 85%;">
-                    👋 ¡Hola! Soy Judith. ¿En qué puedo ayudarte?
-                </div>
+            <div id="judith-content" class="judith-content">
+                <div class="chat-msg msg-judith">¡Hola! Soy Judith. ¿Charlamos o trabajamos? 😉</div>
             </div>
-
-            <!-- Estado -->
-            <div id="judith-status" style="display:none; padding: 5px 15px; font-size: 12px; color: #666; background: #f0f2f5;">
-                Judith está escribiendo...
-            </div>
-
-            <!-- Input -->
-            <div style="padding: 12px; background: white; border-top: 1px solid #ddd; display: flex; gap: 8px;">
-                <input type="text" id="user-input" placeholder="Escribe aquí..." style="flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 20px; outline: none; padding-left: 15px;">
-                <button id="send-btn" style="width: 40px; height: 40px; background: #0078d4; color: white; border: none; border-radius: 50%; cursor: pointer; font-weight: bold;">➤</button>
-            </div>
+            <div id="judith-status" class="judith-status">Cargando datos...</div>
         </div>
     `;
-
-    document.body.appendChild(wrapper);
-    console.log("✅ Interfaz de Judith inyectada en el body.");
-
-    // Configurar eventos una vez creado el HTML
-    setupEvents();
+    document.body.appendChild(container);
+    console.log("Judith UI creada correctamente");
 }
 
-// ==========================================
-// 3. EVENTOS
-// ==========================================
-
-function setupEvents() {
-    const launcher = document.getElementById('judith-launcher');
-    const modal = document.getElementById('judith-modal');
-    const closeBtn = document.getElementById('close-judith');
-    const sendBtn = document.getElementById('send-btn');
-    const input = document.getElementById('user-input');
-
-    // Abrir
-    launcher.addEventListener('click', () => {
-        modal.style.display = 'flex';
-        launcher.style.display = 'none';
-        setTimeout(() => input.focus(), 100); // Foco al input
-    });
-
-    // Cerrar
-    closeBtn.addEventListener('click', () => {
-        modal.style.display = 'none';
-        launcher.style.display = 'flex';
-    });
-
-    // Enviar
-    sendBtn.addEventListener('click', handleMessage);
-    input.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') handleMessage();
-    });
+// --- GESTIÓN DE CLAVE API ---
+function checkApiKey() {
+    if (!apiKey || apiKey.length < 10) {
+        const inputKey = prompt("🔑 Judith necesita tu API Key de OpenAI para hablar con voz real:\n(Empieza por sk-...)");
+        if (inputKey && inputKey.startsWith("sk-")) {
+            apiKey = inputKey;
+            localStorage.setItem('openai_apikey', inputKey);
+            alert("¡Clave guardada! Pulsa el micro otra vez.");
+            return true;
+        } else {
+            alert("Clave no válida. Judith no puede funcionar.");
+            return false;
+        }
+    }
+    return true;
 }
 
-// ==========================================
-// 4. LÓGICA DE NEGOCIO
-// ==========================================
+// --- CARGA DE DATOS ---
+async function loadStructuredData() {
+    try {
+        const [resTarifa, resStock] = await Promise.all([
+            fetch(`src/Tarifa_General.json?v=${new Date().getTime()}`),
+            fetch(`src/Stock.json?v=${new Date().getTime()}`)
+        ]);
 
-async function handleMessage() {
-    const input = document.getElementById('user-input');
-    const text = input.value.trim();
-    if (!text) return;
+        if (!resTarifa.ok || !resStock.ok) throw new Error("Error JSON");
 
-    // Pintar usuario
-    addMsg(text, 'user');
-    input.value = '';
+        const dataStock = await resStock.json();
+        (dataStock.Stock || []).forEach(item => {
+            stockMap.set(String(item.Artículo), item);
+        });
 
-    // Estado cargando
-    const status = document.getElementById('judith-status');
-    status.style.display = 'block';
+        const dataTarifa = await resTarifa.json();
+        if (Array.isArray(dataTarifa)) {
+            productsDB = dataTarifa;
+        } else {
+            productsDB = dataTarifa[Object.keys(dataTarifa)[0]];
+        }
+        
+        if(statusDiv) statusDiv.textContent = "✅ Judith Lista";
+
+    } catch (error) {
+        console.error(error);
+        if(statusDiv) statusDiv.textContent = "❌ Error Datos";
+    }
+}
+
+// --- BUSCADOR INTELIGENTE ---
+function findRelevantProducts(query) {
+    const cleanQuery = query.toLowerCase();
+    
+    // Detectar intención de búsqueda
+    const searchIntention = cleanQuery.length > 3 && (
+        productsDB.some(p => cleanQuery.includes(String(p.Referencia).toLowerCase())) || 
+        productsDB.some(p => cleanQuery.includes(String(p.Descripcion).toLowerCase().substring(0, 10))) ||
+        cleanQuery.includes("precio") || 
+        cleanQuery.includes("stock") || 
+        cleanQuery.includes("tienes") || 
+        cleanQuery.includes("queda") ||
+        cleanQuery.includes("vale")
+    );
+
+    if (!searchIntention) return null; 
+
+    const terms = cleanQuery.split(' ').filter(t => t.length > 2);
+    const matches = productsDB.filter(p => {
+        const desc = (p.Descripcion || "").toLowerCase();
+        const ref = String(p.Referencia || "").toLowerCase();
+        return terms.some(term => desc.includes(term) || ref.includes(term));
+    });
+
+    const topMatches = matches.slice(0, 10);
+    if (topMatches.length === 0) return null; 
+
+    let contextText = "DATOS DEL CATÁLOGO:\n";
+    topMatches.forEach(p => {
+        const ref = String(p.Referencia);
+        const stockInfo = stockMap.get(ref);
+        let stockTxt = "Sin datos";
+        if (stockInfo) {
+            stockTxt = `${stockInfo.Stock || 0} uds (Estado: ${stockInfo.Estado})`;
+        }
+        contextText += `- Ref: ${ref} | ${p.Descripcion} | PVP: ${p.PRECIO_ESTANDAR}€ | Stock: ${stockTxt}\n`;
+    });
+
+    return contextText;
+}
+
+// --- CONEXIÓN CON OPENAI (CHAT + AUDIO) ---
+async function askOpenAI(userText, contextData, isWorkMode) {
+    const temp = isWorkMode ? 0.2 : 0.9; // Más creativa si charlamos
+    
+    const messages = [
+        { role: "system", content: SYSTEM_PROMPT }
+    ];
+
+    if (isWorkMode) {
+        messages.push({ role: "system", content: "El usuario pregunta por:\n" + contextData });
+    }
+
+    messages.push({ role: "user", content: userText });
 
     try {
-        const reply = await callOpenAI(text);
-        addMsg(reply, 'judith');
-        speak(reply);
-    } catch (e) {
-        console.error(e);
-        addMsg("Lo siento, no puedo conectar ahora mismo.", 'judith');
-    } finally {
-        status.style.display = 'none';
+        // 1. OBTENER RESPUESTA DE TEXTO
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model: "gpt-4o-mini",
+                messages: messages,
+                max_tokens: 150,
+                temperature: temp 
+            })
+        });
+
+        const data = await response.json();
+        
+        if (data.error) throw new Error(data.error.message);
+
+        const reply = data.choices[0].message.content;
+        addMessage(reply, 'judith');
+        
+        // 2. GENERAR AUDIO DE CALIDAD (NOVA)
+        await speakHighQuality(reply);
+        
+        updateStatus("💤 Esperando...");
+
+    } catch (error) {
+        addMessage("Error: " + error.message, 'judith');
+        updateStatus("❌ Error");
     }
 }
 
-function addMsg(text, role) {
-    const content = document.getElementById('judith-content');
-    const div = document.createElement('div');
+// --- SÍNTESIS DE VOZ HD (OPENAI AUDIO) ---
+async function speakHighQuality(text) {
+    updateStatus("🔊 Generando voz...");
     
-    // Estilos dinámicos
-    const isUser = role === 'user';
-    div.style.background = isUser ? '#dcf8c6' : 'white';
-    div.style.alignSelf = isUser ? 'flex-end' : 'flex-start';
-    div.style.marginLeft = isUser ? 'auto' : '0';
-    div.style.marginRight = isUser ? '0' : 'auto';
-    div.style.maxWidth = '85%';
-    div.style.padding = '10px 14px';
-    div.style.borderRadius = '12px';
-    div.style.marginBottom = '10px';
-    div.style.boxShadow = '0 1px 2px rgba(0,0,0,0.1)';
-    div.style.wordWrap = 'break-word';
+    // Limpieza de emojis
+    const cleanText = text.replace(/[*_#]/g, '').replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '');
 
-    if (!isUser) {
-        div.style.borderTopLeftRadius = '2px';
-        div.innerHTML = `<b>👩‍💼 Judith:</b><br>${text}`;
-    } else {
-        div.style.borderTopRightRadius = '2px';
-        div.innerText = text;
+    try {
+        const response = await fetch('https://api.openai.com/v1/audio/speech', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: "tts-1",
+                input: cleanText,
+                voice: "nova" // Voz simpática y humana
+            })
+        });
+
+        if (!response.ok) throw new Error("Error generando audio");
+
+        const blob = await response.blob();
+        const audioUrl = URL.createObjectURL(blob);
+        
+        audioPlayer.src = audioUrl;
+        audioPlayer.play();
+        
+        updateStatus("🗣️ Hablando...");
+
+        audioPlayer.onended = () => {
+            updateStatus("💤 Esperando...");
+        };
+
+    } catch (error) {
+        console.error("Error Audio:", error);
+        // Fallback si falla la voz HD
+        const synth = window.speechSynthesis;
+        const u = new SpeechSynthesisUtterance(cleanText);
+        u.lang = "es-ES";
+        synth.speak(u);
     }
+}
 
+// --- HELPER UI ---
+function addMessage(text, sender) {
+    const div = document.createElement('div');
+    div.classList.add('chat-msg', sender === 'user' ? 'msg-user' : 'msg-judith');
+    div.textContent = text;
     content.appendChild(div);
     content.scrollTop = content.scrollHeight;
 }
 
-// ==========================================
-// 5. API Y VOZ
-// ==========================================
-
-async function callOpenAI(msg) {
-    if (API_KEY.includes("TU_CLAVE")) return "⚠️ Configura la API Key en judith.js";
-
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${API_KEY}`
-        },
-        body: JSON.stringify({
-            model: "gpt-3.5-turbo",
-            messages: [
-                { role: "system", content: SYSTEM_PROMPT },
-                { role: "user", content: msg }
-            ]
-        })
-    });
-    const data = await res.json();
-    return data.choices[0].message.content;
-}
-
-function speak(text) {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'es-ES'; // Español de España
-    u.rate = 1.1;
-    window.speechSynthesis.speak(u);
+function updateStatus(text) {
+    if(statusDiv) statusDiv.textContent = text;
 }
