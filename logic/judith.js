@@ -5,33 +5,30 @@
 const HARDCODED_KEY = "sk-proj-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"; 
 
 const SYSTEM_PROMPT = `
-Eres Judith, una operadora comercial seria y eficiente de "CV Tools".
-TU MISIÓN: Dar datos de precio y stock leyendo la información que te paso.
+Eres Judith, la asistente comercial de "CV Tools".
+PERSONALIDAD:
+- Eres mujer, simpática, alegre y con sentido del humor.
+- Te encanta dar conversación. Si te saludan o preguntan qué tal, responde con naturalidad y simpatía (ej: "¡Aquí estoy, lista para venderlo todo! ¿Y tú qué tal?").
+- NO eres un robot aburrido. Eres una compañera de trabajo eficiente pero con chispa.
 
-REGLAS ABSOLUTAS (SI LAS ROMPES, FALLAS):
-1. PROHIBIDO USAR EMOJIS. Ni uno solo. Texto plano estricto.
-2. PROHIBIDO inventar datos. Si en la lista que te paso no está el producto, di "No encuentro ese producto".
-3. LENGUAJE: Natural, hablado, breve. No hagas listas largas. Resume.
-
-REGLAS DE NEGOCIO:
-1. STOCK: 
-   - Jamás digas el número exacto (ej: "40").
-   - Si Stock > 10: Di "Sí, hay stock disponible".
-   - Si Stock 1-10: Di "Quedan muy pocas unidades".
-   - Si Stock 0: Di "Está agotado".
-   - Si Estado "FAB": Di "Se fabrica bajo pedido".
+REGLAS DE TRABAJO (CUANDO PIDEN DATOS):
+1. STOCK:
+   - NUNCA digas el número exacto. 
+   - Si hay > 10: "Sí, tenemos de sobra".
+   - Si hay 1-10: "Queda poquito, ojo".
+   - Si hay 0: "Nada, está agotado".
 2. PRECIOS:
-   - Si te preguntan precio, di el PVP Estándar que te paso.
-   - Si preguntan por un cliente (ej. BigMat) y no tienes ese dato específico, di el estándar.
+   - Da el precio estándar si no especifican cliente.
 
-ESTILO DE RESPUESTA:
-No saludes siempre. Responde directo a la pregunta.
-Ejemplo: "La valla ref 101 cuesta 20 euros y sí tenemos stock."
+REGLAS DE HABLA:
+- PROHIBIDO EMOJIS (El lector los lee mal).
+- Usa frases cortas y naturales.
+- Si no encuentras un producto, dilo con naturalidad: "Oye, pues eso no me suena que lo tengamos".
 `;
 
 // --- VARIABLES ---
 let apiKey = HARDCODED_KEY; 
-let productsDB = []; // Aquí guardaremos los objetos brutos, no texto
+let productsDB = []; 
 let stockMap = new Map();
 
 const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
@@ -50,10 +47,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     content = document.getElementById('judith-content');
     statusDiv = document.getElementById('judith-status');
 
-    // Cargar datos en memoria estructurada
     await loadStructuredData();
 
-    // Configuración Voz
     recognition.lang = 'es-ES';
     recognition.continuous = false;
     recognition.interimResults = false;
@@ -72,13 +67,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     recognition.onresult = async (event) => {
         const transcript = event.results[0][0].transcript;
         addMessage(transcript, 'user');
-        updateStatus("🧠 Buscando datos...");
         
-        // 1. FILTRADO PREVIO (El truco para que te entienda)
-        const relevantContext = findRelevantProducts(transcript);
+        // Decidimos si es trabajo o charla
+        const productContext = findRelevantProducts(transcript);
         
-        // 2. CONSULTA A OPENAI CON DATOS FILTRADOS
-        await askOpenAI(transcript, relevantContext);
+        if (productContext) {
+            updateStatus("🧠 Consultando catálogo...");
+            await askOpenAI(transcript, productContext, true); // Modo Trabajo
+        } else {
+            updateStatus("💬 Charlando...");
+            await askOpenAI(transcript, "", false); // Modo Charla
+        }
     };
 
     fab.addEventListener('click', () => {
@@ -98,7 +97,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 });
 
-// --- CARGA DE DATOS INTELIGENTE ---
+// --- CARGA DE DATOS ---
 async function loadStructuredData() {
     try {
         const [resTarifa, resStock] = await Promise.all([
@@ -108,76 +107,91 @@ async function loadStructuredData() {
 
         if (!resTarifa.ok || !resStock.ok) throw new Error("Error JSON");
 
-        // Guardar Stock en Mapa para acceso instantáneo
         const dataStock = await resStock.json();
         (dataStock.Stock || []).forEach(item => {
             stockMap.set(String(item.Artículo), item);
         });
 
-        // Guardar Productos en Array
         const dataTarifa = await resTarifa.json();
-        // Detectar estructura
         if (Array.isArray(dataTarifa)) {
             productsDB = dataTarifa;
         } else {
             productsDB = dataTarifa[Object.keys(dataTarifa)[0]];
         }
         
-        updateStatus("✅ Datos listos");
-        console.log("Judith: Base de datos cargada. Items:", productsDB.length);
+        updateStatus("✅ Judith Lista");
+        console.log("Judith: Memoria cargada.");
 
     } catch (error) {
-        console.error("Error Judith Data:", error);
+        console.error(error);
         updateStatus("❌ Error Datos");
     }
 }
 
-// --- BUSCADOR INTERNO (EL FILTRO) ---
+// --- BUSCADOR INTELIGENTE (Detecta si hay intención de compra) ---
 function findRelevantProducts(query) {
-    // Si la consulta es un saludo genérico, no enviamos datos
-    if (query.length < 3) return "No hay datos específicos. Es una charla general.";
-
-    const terms = query.toLowerCase().split(' ').filter(t => t.length > 2); // Palabras de más de 2 letras
+    const cleanQuery = query.toLowerCase();
     
-    // Buscamos productos que coincidan con alguna palabra clave
+    // Lista de palabras "gatillo" para saber si busca productos
+    // Si la frase no tiene una intención clara de búsqueda o palabras de catálogo, asumimos charla.
+    const searchIntention = cleanQuery.length > 3 && (
+        productsDB.some(p => cleanQuery.includes(String(p.Referencia).toLowerCase())) || 
+        productsDB.some(p => cleanQuery.includes(String(p.Descripcion).toLowerCase().substring(0, 10))) ||
+        cleanQuery.includes("precio") || 
+        cleanQuery.includes("stock") || 
+        cleanQuery.includes("tienes") || 
+        cleanQuery.includes("queda") ||
+        cleanQuery.includes("vale")
+    );
+
+    if (!searchIntention) return null; // Es charla pura
+
+    const terms = cleanQuery.split(' ').filter(t => t.length > 2);
     const matches = productsDB.filter(p => {
         const desc = (p.Descripcion || "").toLowerCase();
         const ref = String(p.Referencia || "").toLowerCase();
-        // Si la descripción o la ref contienen alguno de los términos hablados
         return terms.some(term => desc.includes(term) || ref.includes(term));
     });
 
-    // Limitamos a los 10 mejores resultados para no saturar a la IA
-    const topMatches = matches.slice(0, 15);
-
-    if (topMatches.length === 0) return "No he encontrado productos en la base de datos que coincidan con lo que pide el usuario.";
-
-    // Construimos el texto solo con lo relevante
-    let contextText = "DATOS ENCONTRADOS RELACIONADOS CON LA PREGUNTA:\n";
+    const topMatches = matches.slice(0, 10);
     
+    if (topMatches.length === 0) return null; // No encontró nada, pasamos a modo charla genérica
+
+    let contextText = "DATOS DEL CATÁLOGO:\n";
     topMatches.forEach(p => {
         const ref = String(p.Referencia);
         const stockInfo = stockMap.get(ref);
-        let stockTxt = "Sin datos de stock";
-        
+        let stockTxt = "Sin datos";
         if (stockInfo) {
-            const qty = stockInfo.Stock || 0;
-            const estado = stockInfo.Estado || "";
-            stockTxt = `Cantidad: ${qty} (Estado: ${estado})`;
+            stockTxt = `${stockInfo.Stock || 0} uds (Estado: ${stockInfo.Estado})`;
         }
-
-        contextText += `- Ref: ${ref} | Desc: ${p.Descripcion} | Precio Estándar: ${p.PRECIO_ESTANDAR || 0}€ | Stock: ${stockTxt}\n`;
+        contextText += `- Ref: ${ref} | ${p.Descripcion} | PVP: ${p.PRECIO_ESTANDAR}€ | Stock: ${stockTxt}\n`;
     });
 
     return contextText;
 }
 
-// --- IA ---
-async function askOpenAI(userText, contextData) {
+// --- CONEXIÓN CON OPENAI ---
+async function askOpenAI(userText, contextData, isWorkMode) {
     if (!apiKey || apiKey.includes("XXX")) {
-        speak("Falta la clave de configuración.");
+        speak("Necesito que configures mi clave API.");
         return;
     }
+
+    // Si es modo charla, subimos la temperatura para que sea más creativa.
+    // Si es modo trabajo, la bajamos para que no invente precios.
+    const temp = isWorkMode ? 0.2 : 0.8; 
+    
+    // Si es modo charla, no inyectamos datos de productos para no confundirla
+    const messages = [
+        { role: "system", content: SYSTEM_PROMPT }
+    ];
+
+    if (isWorkMode) {
+        messages.push({ role: "system", content: "El usuario pregunta por estos productos:\n" + contextData });
+    }
+
+    messages.push({ role: "user", content: userText });
 
     try {
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -188,13 +202,9 @@ async function askOpenAI(userText, contextData) {
             },
             body: JSON.stringify({
                 model: "gpt-4o-mini",
-                messages: [
-                    { role: "system", content: SYSTEM_PROMPT },
-                    { role: "system", content: contextData }, // Inyectamos solo los datos filtrados
-                    { role: "user", content: userText }
-                ],
-                max_tokens: 100, // Respuesta corta
-                temperature: 0.3 // Baja temperatura = Menos creativa, más precisa, menos emojis
+                messages: messages,
+                max_tokens: 150,
+                temperature: temp 
             })
         });
 
@@ -206,25 +216,33 @@ async function askOpenAI(userText, contextData) {
         updateStatus("💤 Esperando...");
 
     } catch (error) {
-        addMessage("Error conexión IA", 'judith');
+        addMessage("Error de conexión...", 'judith');
     }
 }
 
-// --- VOZ ---
+// --- SÍNTESIS DE VOZ (Intentando que sea menos robótica) ---
 function speak(text) {
     if (synth.speaking) synth.cancel();
     
-    // Doble seguridad anti-emojis: Los borramos del texto antes de leer
-    // Elimina rangos unicode de emojis
-    const cleanText = text.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '');
+    // 1. Limpieza radical de texto
+    const cleanText = text.replace(/[*_#]/g, '').replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '');
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = 'es-ES';
-    utterance.rate = 1.1; 
     
+    // TRUCO: Un poco más de velocidad suele disimular lo robótico
+    utterance.rate = 1.1; 
+    // TRUCO: Tono ligeramente agudo para voz femenina
+    utterance.pitch = 1.2; 
+
+    // Selección de voz: Buscamos "Google" que suele ser la más natural en Android
     const voices = synth.getVoices();
-    const voice = voices.find(v => v.lang.includes('es') && (v.name.includes('Google') || v.name.includes('Microsoft')));
-    if (voice) utterance.voice = voice;
+    const preferredVoice = voices.find(v => 
+        (v.lang.includes('es') && v.name.includes('Google')) || 
+        (v.lang.includes('es') && v.name.includes('Microsoft'))
+    );
+    
+    if (preferredVoice) utterance.voice = preferredVoice;
 
     synth.speak(utterance);
 }
@@ -249,13 +267,13 @@ function createJudithUI() {
         <div id="judith-fab"><span style="font-size: 30px;">👩‍💼</span></div>
         <div id="judith-modal" class="judith-modal">
             <div class="judith-header">
-                <span>Judith IA</span>
+                <span>👩‍💼 Judith IA</span>
                 <span id="close-judith" style="cursor:pointer; font-size:1.5rem;">&times;</span>
             </div>
             <div id="judith-content" class="judith-content">
-                <div class="chat-msg msg-judith">Hola. ¿En qué te ayudo?</div>
+                <div class="chat-msg msg-judith">¡Hola! ¿Charlamos un rato o trabajamos? 😉</div>
             </div>
-            <div id="judith-status" class="judith-status">Cargando datos...</div>
+            <div id="judith-status" class="judith-status">Cargando...</div>
         </div>
     `;
     document.body.appendChild(container);
