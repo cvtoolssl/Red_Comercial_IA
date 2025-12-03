@@ -2,66 +2,129 @@
 // CONFIGURACIÓN DE JUDITH
 // ==========================================
 
-// ¡IMPORTANTE! Pega aquí tu clave, pero ten cuidado al subir esto a GitHub.
-// Si el repo es público, GitHub te bloqueará. Lo ideal es usar variables de entorno,
-// pero para este archivo local, pégala dentro de las comillas.
-const API_KEY = "sk-TU_CLAVE_DE_OPENAI_AQUI"; 
+// ⚠️ PEGA AQUÍ TU CLAVE DE OPENAI.
+// IMPORTANTE: Si subes esto a GitHub, asegúrate de borrar la clave antes o usar variables de entorno.
+const API_KEY = "sk-TU_CLAVE_AQUI"; 
 
 const SYSTEM_PROMPT = `
-Eres Judith, la asistente comercial virtual experta en publicidad y marketing.
+Eres Judith, la asistente comercial virtual de la empresa.
 
-PERSONALIDAD Y TONO:
-- Tu idioma es ESPAÑOL DE ESPAÑA (Castellano neutro). 
-- Eres simpática, educada y muy profesional.
-- Usas expresiones como: "Fenomenal", "Estupendo", "Enseguida te lo miro", "Claro que sí".
-- PROHIBIDO: Usar jerga latina, tutear excesivamente si no hay confianza, o frases arrogantes como "vamos sobrados". Sé humilde y servicial.
-- Objetivo: Ayudar al cliente a encontrar la mejor solución publicitaria.
+PERSONALIDAD:
+- Tu idioma es ESPAÑOL DE ESPAÑA (Castellano).
+- Tono: Simpática, servicial y profesional. NUNCA arrogante.
+- Frases típicas: "¡Hola!", "Claro que sí", "Enseguida te lo miro", "Fenomenal".
+- No uses jerga latina ni "spanglish".
 
-DICCIONARIO DE PRODUCTOS (MUY IMPORTANTE):
-1. Tienes los archivos json adjuntos. Limítate a buscar por descripción  o referencia lo que te preguntan y da la información
+DEFINICIONES DE PRODUCTOS (IMPORTANTE):
+1. VALLAS: Te refieres a "Vallas Publicitarias de Gran Formato" (Carreteras, 8x3m, monopostes). NO son vallas de jardín.
+2. CARTELES: Te refieres a cartelería pequeña, pósters, A3, escaparates.
 
-INSTRUCCIÓN:
-Si te preguntan por cualquier producto pregunta para que tarifa quieres el precio e informa de si hay stock o no sin decir nunca la cantidad. 
+Si preguntan por "vallas", da precios o info de soportes exteriores gigantes.
+Si preguntan por "carteles", habla de impresión digital o papel.
 `;
 
 // ==========================================
-// LÓGICA DE LA INTERFAZ (UI)
+// 1. CREAR LA INTERFAZ (BOTÓN Y VENTANA)
 // ==========================================
 
 function createJudithUI() {
-    // Evitar duplicados si ya existe
-    if (document.getElementById('judith-modal')) return;
+    // Si ya existe, no lo creamos de nuevo
+    if (document.getElementById('judith-wrapper')) return;
 
-    const modalHTML = `
-    <div id="judith-modal" class="judith-modal">
-        <div class="judith-header">
-            <span>👩‍💼 Judith IA</span>
-            <span id="close-judith" style="cursor:pointer; font-size:1.5rem;">&times;</span>
-        </div>
-        <div id="judith-content" class="judith-content">
-            <div class="chat-msg msg-judith">¡Hola! Soy Judith, tu compañera. ¿Qué necesitas hoy?</div>
-        </div>
-        
-        <!-- Área de entrada de texto -->
-        <div class="judith-input-area" style="padding: 10px; display: flex; gap: 5px; border-top: 1px solid #ccc;">
-            <input type="text" id="user-input" placeholder="Escribe aquí..." style="flex: 1; padding: 8px; border-radius: 4px; border: 1px solid #ddd;">
-            <button id="send-btn" style="padding: 8px 15px; background: #0078d4; color: white; border: none; border-radius: 4px; cursor: pointer;">➤</button>
-        </div>
+    // Creamos un contenedor para todo
+    const wrapper = document.createElement('div');
+    wrapper.id = 'judith-wrapper';
+    
+    // HTML del Botón Flotante + Ventana Modal
+    wrapper.innerHTML = `
+        <!-- BOTÓN FLOTANTE (El icono que siempre se ve) -->
+        <div id="judith-launcher" style="
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            background-color: #0078d4;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            z-index: 9999;
+            transition: transform 0.3s;
+        ">👩‍💼</div>
 
-        <div id="judith-status" class="judith-status" style="display:none; padding: 5px; font-size: 0.8em; color: gray;">Judith está escribiendo...</div>
-    </div>
+        <!-- VENTANA DEL CHAT (Oculta al principio) -->
+        <div id="judith-modal" style="
+            display: none;
+            position: fixed;
+            bottom: 90px;
+            right: 20px;
+            width: 350px;
+            height: 500px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+            z-index: 9999;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid #e0e0e0;
+        ">
+            <!-- Cabecera -->
+            <div style="background: #0078d4; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: bold;">👩‍💼 Judith IA</span>
+                <span id="close-judith" style="cursor: pointer; font-size: 20px;">&times;</span>
+            </div>
+
+            <!-- Área de mensajes -->
+            <div id="judith-content" style="flex: 1; padding: 15px; overflow-y: auto; background: #f9f9f9;">
+                <div class="chat-msg msg-judith" style="background: white; padding: 10px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #eee;">
+                    ¡Hola! Soy Judith. ¿En qué puedo ayudarte hoy?
+                </div>
+            </div>
+
+            <!-- Estado escribiendo... -->
+            <div id="judith-status" style="display:none; padding: 5px 15px; font-size: 12px; color: #666; font-style: italic;">
+                Judith está escribiendo...
+            </div>
+
+            <!-- Input -->
+            <div style="padding: 10px; border-top: 1px solid #eee; display: flex; background: white;">
+                <input type="text" id="user-input" placeholder="Escribe aquí..." style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px; outline: none;">
+                <button id="send-btn" style="margin-left: 5px; padding: 0 15px; background: #0078d4; color: white; border: none; border-radius: 4px; cursor: pointer;">➤</button>
+            </div>
+        </div>
     `;
 
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    document.body.appendChild(wrapper);
 
-    // Event Listeners
-    document.getElementById('close-judith').addEventListener('click', () => {
-        document.getElementById('judith-modal').style.display = 'none';
-    });
+    // ==========================================
+    // 2. EVENTOS (CLICKS Y TECLAS)
+    // ==========================================
 
+    const launcher = document.getElementById('judith-launcher');
+    const modal = document.getElementById('judith-modal');
+    const closeBtn = document.getElementById('close-judith');
     const sendBtn = document.getElementById('send-btn');
     const input = document.getElementById('user-input');
 
+    // Abrir chat
+    launcher.addEventListener('click', () => {
+        modal.style.display = 'flex';
+        launcher.style.display = 'none'; // Ocultar botón al abrir
+        input.focus();
+    });
+
+    // Cerrar chat
+    closeBtn.addEventListener('click', () => {
+        modal.style.display = 'none';
+        launcher.style.display = 'flex'; // Mostrar botón de nuevo
+    });
+
+    // Enviar mensaje
     sendBtn.addEventListener('click', handleUserMessage);
     input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') handleUserMessage();
@@ -69,7 +132,7 @@ function createJudithUI() {
 }
 
 // ==========================================
-// LÓGICA DEL CHAT
+// 3. LÓGICA DE ENVÍO Y RESPUESTA
 // ==========================================
 
 async function handleUserMessage() {
@@ -80,61 +143,65 @@ async function handleUserMessage() {
 
     if (!userText) return;
 
-    // 1. Mostrar mensaje del usuario
-    appendMessage(userText, 'msg-user', '👤');
+    // 1. Pintar mensaje usuario
+    addMessageToChat(userText, 'user');
     input.value = '';
-    
-    // 2. Mostrar estado "Cargando..."
+
+    // 2. Mostrar "Escribiendo..."
     statusDiv.style.display = 'block';
+    contentDiv.scrollTop = contentDiv.scrollHeight;
 
     try {
-        // 3. Llamada a OpenAI
+        // 3. Llamar a la API
         const responseText = await getOpenAIResponse(userText);
         
-        // 4. Mostrar respuesta de Judith
-        appendMessage(responseText, 'msg-judith', '👩‍💼');
+        // 4. Pintar respuesta Judith
+        addMessageToChat(responseText, 'judith');
         
-        // 5. Hablar (TTS)
+        // 5. Hablar
         speakText(responseText);
 
     } catch (error) {
-        console.error(error);
-        appendMessage("Lo siento, he tenido un problema de conexión. ¿Puedes repetirlo?", 'msg-judith', '⚠️');
+        console.error("Error API:", error);
+        addMessageToChat("Lo siento, tengo un problema de conexión. Inténtalo de nuevo.", 'judith');
     } finally {
         statusDiv.style.display = 'none';
+        contentDiv.scrollTop = contentDiv.scrollHeight;
     }
 }
 
-function appendMessage(text, className, icon) {
+function addMessageToChat(text, sender) {
     const contentDiv = document.getElementById('judith-content');
-    const msgDiv = document.createElement('div');
-    msgDiv.className = `chat-msg ${className}`;
-    msgDiv.style.margin = "10px 0";
-    msgDiv.style.padding = "10px";
-    msgDiv.style.borderRadius = "8px";
+    const div = document.createElement('div');
     
-    // Estilos básicos para diferenciar (puedes moverlos al CSS)
-    if (className === 'msg-user') {
-        msgDiv.style.background = "#e3f2fd";
-        msgDiv.style.textAlign = "right";
-        msgDiv.innerHTML = `${text} ${icon}`;
+    // Estilos según quien habla
+    if (sender === 'user') {
+        div.style.background = "#dcf8c6"; // Verde tipo WhatsApp
+        div.style.alignSelf = "flex-end";
+        div.style.marginLeft = "20%";
+        div.innerHTML = `${text}`;
     } else {
-        msgDiv.style.background = "#f5f5f5";
-        msgDiv.style.textAlign = "left";
-        msgDiv.innerHTML = `${icon} ${text}`;
+        div.style.background = "white";
+        div.style.border = "1px solid #eee";
+        div.style.marginRight = "20%";
+        div.innerHTML = `<b>👩‍💼 Judith:</b><br>${text}`;
     }
 
-    contentDiv.appendChild(msgDiv);
-    contentDiv.scrollTop = contentDiv.scrollHeight; // Auto-scroll
+    div.style.padding = "10px";
+    div.style.borderRadius = "8px";
+    div.style.marginBottom = "10px";
+    div.style.wordWrap = "break-word";
+
+    contentDiv.appendChild(div);
 }
 
 // ==========================================
-// CONEXIÓN CON API (CEREBRO)
+// 4. CONEXIÓN API (CEREBRO)
 // ==========================================
 
 async function getOpenAIResponse(userMessage) {
     if (API_KEY.includes("TU_CLAVE")) {
-        return "¡Oye! Parece que falta configurar mi API Key en el código. Avísale al programador.";
+        return "⚠️ Error: Necesitas poner tu API KEY en el archivo judith.js (línea 7).";
     }
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -144,58 +211,45 @@ async function getOpenAIResponse(userMessage) {
             "Authorization": `Bearer ${API_KEY}`
         },
         body: JSON.stringify({
-            model: "gpt-3.5-turbo", // O gpt-4 si tienes acceso y presupuesto
+            model: "gpt-3.5-turbo",
             messages: [
                 { role: "system", content: SYSTEM_PROMPT },
                 { role: "user", content: userMessage }
             ],
-            temperature: 0.7, // Creatividad equilibrada
-            max_tokens: 150
+            temperature: 0.7
         })
     });
 
     const data = await response.json();
-    
-    if (data.error) {
-        throw new Error(data.error.message);
-    }
-    
+    if (data.error) throw new Error(data.error.message);
     return data.choices[0].message.content;
 }
 
 // ==========================================
-// VOZ (TEXT TO SPEECH) - ESPAÑOL DE ESPAÑA
+// 5. VOZ (ESPAÑOL DE ESPAÑA)
 // ==========================================
 
 function speakText(text) {
     if (!('speechSynthesis' in window)) return;
 
-    // Cancelar si ya estaba hablando
-    window.speechSynthesis.cancel();
-
+    window.speechSynthesis.cancel(); // Parar si ya habla
     const utterance = new SpeechSynthesisUtterance(text);
     
-    // Configuración de la voz
-    utterance.lang = 'es-ES'; // Forzar Español de España
-    utterance.rate = 1.1;     // Un pelín más rápido para que sea dinámico
-    utterance.pitch = 1.1;    // Un tono un poco más agudo (más femenino/amable)
+    // Configuración para España
+    utterance.lang = 'es-ES'; 
+    utterance.rate = 1.1; 
+    utterance.pitch = 1.1;
 
-    // Intentar buscar una voz específica de Google o Microsoft si existe
+    // Buscar voz específica de Google o Microsoft si hay
     const voices = window.speechSynthesis.getVoices();
-    const spanishVoice = voices.find(voice => 
-        (voice.lang === 'es-ES' && voice.name.includes('Google')) || 
-        (voice.lang === 'es-ES' && voice.name.includes('Microsoft')) ||
-        voice.lang === 'es-ES'
-    );
-
-    if (spanishVoice) {
-        utterance.voice = spanishVoice;
-    }
+    const esVoice = voices.find(v => v.lang === 'es-ES' && (v.name.includes('Google') || v.name.includes('Microsoft')));
+    
+    if (esVoice) utterance.voice = esVoice;
 
     window.speechSynthesis.speak(utterance);
 }
 
-// Inicializar al cargar
+// INICIALIZAR
 document.addEventListener('DOMContentLoaded', createJudithUI);
-// Por si acaso carga antes el script que el DOM
+// Ejecutar también por si el DOM ya estaba listo
 createJudithUI();
