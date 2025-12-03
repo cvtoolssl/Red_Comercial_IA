@@ -544,3 +544,94 @@ h1 { font-size: 2.2rem; font-weight: 600; margin: 0; color: #333; }
         justify-content: center;
     }
 }
+
+/* --- ESTILOS DE JUDITH (ASISTENTE IA) --- */
+
+/* Botón flotante del micrófono (Izquierda) */
+#judith-fab {
+    position: fixed;
+    bottom: 25px;
+    left: 25px; /* A la izquierda para no chocar con WhatsApp */
+    width: 65px;
+    height: 65px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    box-shadow: 0 4px 15px rgba(118, 75, 162, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    z-index: 10000;
+    transition: transform 0.3s ease;
+    border: 3px solid white;
+}
+
+#judith-fab:active { transform: scale(0.95); }
+
+/* Animación cuando está escuchando */
+.listening-pulse {
+    animation: pulse-red 1.5s infinite;
+}
+
+@keyframes pulse-red {
+    0% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.7); border-color: #ff4b4b; }
+    70% { box-shadow: 0 0 0 20px rgba(255, 0, 0, 0); border-color: #ff4b4b; }
+    100% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0); border-color: #ff4b4b; }
+}
+
+/* Modal de Chat Judith */
+.judith-modal {
+    display: none; /* Oculto por defecto */
+    position: fixed;
+    bottom: 100px;
+    left: 25px;
+    width: 300px;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    z-index: 9999;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid #eee;
+    font-family: sans-serif;
+}
+
+.judith-modal.active { display: flex; }
+
+.judith-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 15px;
+    font-weight: bold;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.judith-content {
+    padding: 15px;
+    max-height: 300px;
+    overflow-y: auto;
+    font-size: 0.9rem;
+    background-color: #f9f9f9;
+}
+
+.chat-msg { margin-bottom: 10px; padding: 8px 12px; border-radius: 12px; max-width: 85%; }
+.msg-user { background-color: #e3f2fd; align-self: flex-end; margin-left: auto; color: #333; }
+.msg-judith { background-color: #fff; border: 1px solid #ddd; align-self: flex-start; color: #333; }
+
+.judith-status {
+    padding: 8px;
+    text-align: center;
+    font-size: 0.8rem;
+    color: #666;
+    border-top: 1px solid #eee;
+    background: white;
+    font-style: italic;
+}
+
+/* Modo oscuro para Judith */
+body.dark-mode .judith-modal { background: #1e1e1e; border-color: #333; }
+body.dark-mode .judith-content { background: #121212; }
+body.dark-mode .msg-judith { background: #2d2d2d; color: white; border-color: #444; }
+body.dark-mode .judith-status { background: #1e1e1e; color: #aaa; border-color: #333; }
