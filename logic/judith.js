@@ -1,13 +1,13 @@
-console.log("🔄 Cargando Judith v9.0 (Fix Estructuras + Búsqueda)...");
+console.log("🔄 Cargando Judith v10.0 (Filtro 'Estado:no' + Sin Números)...");
 
 // ==========================================
 // 1. CONFIGURACIÓN Y RUTAS
 // ==========================================
 
-// ⚠️ Tu API KEY (Opcional, si la dejas vacía la pedirá al usuario)
+// ⚠️ Tu API KEY
 const API_KEY_HARDCODED = ""; 
 
-// 📂 TUS ARCHIVOS (Rutas relativas desde index.html)
+// 📂 TUS ARCHIVOS
 const FILES_TO_LOAD = [
     'src/Stock.json',
     'src/Tarifa_General.json',
@@ -25,11 +25,11 @@ let GLOBAL_DATA = [];
 let chatHistory = [];
 
 // ==========================================
-// 2. CARGA DE DATOS (CATÁLOGO COMPLETO)
+// 2. CARGA DE DATOS + FILTRADO ESTRICTO
 // ==========================================
 
 async function loadAllData() {
-    console.log("📂 Iniciando carga de base de datos...");
+    console.log("📂 Iniciando carga y filtrado de base de datos...");
     const statusDiv = document.getElementById('judith-status');
     if(statusDiv) { statusDiv.style.display = 'block'; statusDiv.innerText = "Cargando catálogo..."; }
 
@@ -43,9 +43,17 @@ async function loadAllData() {
                 .then(data => {
                     const key = Object.keys(data)[0]; 
                     const arrayData = data[key];
+                    
                     if (Array.isArray(arrayData)) {
-                        // Añadimos origen para que la IA sepa de qué tarifa viene
-                        return arrayData.map(item => ({ ...item, _origen: file }));
+                        return arrayData
+                            .filter(item => {
+                                // 🛑 FILTRO DE SEGURIDAD 🛑
+                                // Si el artículo tiene Estado "no", LO BORRAMOS del mapa.
+                                // Judith no sabrá ni que existe.
+                                if (item.Estado === "no") return false;
+                                return true;
+                            })
+                            .map(item => ({ ...item, _origen: file }));
                     }
                     return [];
                 })
@@ -55,7 +63,7 @@ async function loadAllData() {
         const results = await Promise.all(promises);
         GLOBAL_DATA = results.flat();
         
-        console.log(`✅ Base de datos lista: ${GLOBAL_DATA.length} productos.`);
+        console.log(`✅ Base de datos lista: ${GLOBAL_DATA.length} productos (filtrados).`);
         if(statusDiv) { statusDiv.style.display = 'none'; }
 
     } catch (error) {
@@ -71,25 +79,17 @@ function findRelevantData(userQuery) {
     if (!GLOBAL_DATA.length) return null;
     const q = userQuery.toLowerCase();
     
-    // Palabras a ignorar para buscar mejor
     const stopWords = ['el', 'la', 'los', 'las', 'un', 'una', 'de', 'del', 'que', 'precio', 'stock', 'tienes', 'cuanto', 'vale', 'quiero', 'necesito', 'hola', 'por', 'favor'];
-    
-    // Sacamos las palabras clave reales (ej: "cartel", "salida")
-    // NOTA: He quitado "detalles" y "especifica" de stopWords para que intente buscar si el usuario insiste,
-    // aunque la clave está en el prompt del sistema.
     const searchTerms = q.split(' ').filter(word => word.length > 2 && !stopWords.includes(word));
 
-    // Si no hay palabras clave (ej: el usuario solo dice "dame más detalles"), 
-    // devolvemos null para que la IA tire de memoria.
     if (searchTerms.length === 0) return null;
 
-    // Buscamos coincidencias
     const results = GLOBAL_DATA.filter(item => {
         const itemString = JSON.stringify(item).toLowerCase();
         return searchTerms.every(term => itemString.includes(term));
     });
 
-    return results.slice(0, 15); // Devolvemos hasta 15 resultados
+    return results.slice(0, 15);
 }
 
 // ==========================================
@@ -106,47 +106,30 @@ function getApiKey() {
 }
 
 // ==========================================
-// 5. CEREBRO IA (System Prompt Revisado)
+// 5. CEREBRO IA (System Prompt Anti-Números)
 // ==========================================
 const SYSTEM_PROMPT = `
 Eres Judith, comercial de señalización.
 
---- REGLAS DE ORO (CÚMPLELAS SIEMPRE) ---
-1. **UBICACIÓN:** El botón de chat está a la izquierda.
-2. **DATOS:** Recibirás un JSON con productos REALES basados en la búsqueda del usuario.
-3. **NO ESPERES:** 
-   - PROHIBIDO decir: "Déjame consultarlo", "Un momento", "Voy a mirar".
-   - Tienes los datos delante. ¡DÁLOS YA!
+--- REGLAS DE ORO ---
+1. **UBICACIÓN:** Botón a la izquierda.
+2. **DATOS:** Usarás los datos que te paso en el contexto cuando el usuario busque algo.
 
---- INSTRUCCIONES DE ESTRUCTURA DE DATOS ---
-A continuación te muestro EJEMPLOS de cómo son los datos. 
-⚠️ ATENCIÓN: Estos datos de abajo son SOLO EJEMPLOS para que entiendas los nombres de las columnas (Claves). NO SON EL INVENTARIO REAL. El inventario real te llegará en el mensaje del sistema cuando el usuario busque algo.
+--- 🛑 REGLA SUPREMA DE STOCK (IMPORTANTE) 🛑 ---
+ESTÁ TOTALMENTE PROHIBIDO DECIR EL NÚMERO EXACTO DE STOCK.
+Aunque veas en los datos "Stock: 1174" o "Stock: 43", JAMÁS se lo digas al cliente.
 
-**EJEMPLO DE ESTRUCTURA STOCK (NO USAR VALORES, SOLO VER CLAVES):**
-{
-  "Artículo": "(Código)", "Nombre artículo": "(Descripción)", "Stock": (Numero), "Estado": "no/fab/si"
-}
-NOTA SOBRE ESTADO:
-- 'si': Se puede decir stock.
-- 'no': Se puede decir stock.
-- 'fab': Entrega 3-4 días aprox.
-- 'fab2': Entrega 15 días aprox.
+Tienes que traducir el número a lenguaje comercial:
+- Si Stock > 100: Di "Sí, tenemos disponibilidad inmediata", "Hay stock de sobra" o "Sin problemas de cantidad".
+- Si Stock es entre 1 y 50: Di "Nos quedan pocas unidades", "Últimas unidades disponibles" o "Stock bajo".
+- Si Stock es 0 o negativo: Di "Ahora mismo está agotado" o "Sin stock".
 
-**EJEMPLO DE ESTRUCTURA TARIFAS (NO USAR VALORES, SOLO VER CLAVES):**
-{
-  "Referencia": "(Ref)", "Descripcion": "(Desc)", "PRECIO_ESTANDAR": (Num), "NETOS": (Num/Null)
-}
+--- INSTRUCCIONES DE RESPUESTA ---
+1. **NO ESPERES:** No digas "Voy a mirar". Responde directamente con la información.
+2. **PRECIOS:** Prioriza siempre el PRECIO NETO si existe.
+3. **ESTRUCTURA:** Los datos que recibes son reales. Si no encuentras algo en el contexto, es que no lo vendemos (o está oculto por política de empresa).
 
---- REGLAS DE RESPUESTA ---
-1. Si te preguntan PRECIO: Busca en el contexto que te paso. Prioriza "NETOS". Si no hay neto, da "PRECIO_ESTANDAR".
-2. Si te preguntan STOCK: 
-   - NUNCA digas el número exacto.
-   - >50: "Hay de sobra".
-   - <50: "Quedan pocas".
-   - 0: "Agotado".
-3. Si te piden DETALLES: Lee la descripción completa del producto que encontraste en el contexto.
-
-Sé directa. No saludes en cada mensaje.
+Sé directa, simpática y profesional.
 `;
 
 // ==========================================
@@ -167,7 +150,6 @@ function createInterface() {
     const wrapper = document.createElement('div');
     wrapper.id = 'judith-wrapper';
     
-    // UI a la izquierda (Left)
     wrapper.innerHTML = `
         <div id="judith-launcher" style="
             position: fixed; bottom: 20px; left: 20px; width: 70px; height: 70px;
@@ -199,7 +181,7 @@ function createInterface() {
 
             <div id="judith-content" style="flex: 1; padding: 15px; overflow-y: auto; background: #f0f2f5;">
                 <div style="background: white; padding: 12px; border-radius: 12px; margin-bottom: 10px; width: 85%; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
-                    👋 Hola. Catálogo cargado. ¿Qué referencia o producto buscamos?
+                    👋 Hola. Catálogo cargado y listo. ¿En qué puedo ayudarte?
                 </div>
             </div>
 
@@ -209,7 +191,7 @@ function createInterface() {
 
             <div style="padding: 15px; background: white; border-top: 1px solid #eee; display: flex; gap: 8px; align-items: center;">
                 <button id="mic-btn" style="width: 42px; height: 42px; background: #d83b01; color: white; border: none; border-radius: 50%; cursor: pointer; font-size: 20px; display:flex; align-items:center; justify-content:center;">🎙️</button>
-                <input type="text" id="user-input" placeholder="Pregunta..." style="flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 20px; outline: none; background: #f9f9f9;">
+                <input type="text" id="user-input" placeholder="Escribe aquí..." style="flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 20px; outline: none; background: #f9f9f9;">
                 <button id="send-btn" style="width: 42px; height: 42px; background: #0078d4; color: white; border: none; border-radius: 50%; cursor: pointer; font-size: 18px; display:flex; align-items:center; justify-content:center;">➤</button>
             </div>
         </div>
@@ -270,7 +252,7 @@ function setupEvents() {
 }
 
 // ==========================================
-// 7. LÓGICA PRINCIPAL (Fluida)
+// 7. LÓGICA PRINCIPAL
 // ==========================================
 
 async function handleMessage() {
@@ -283,32 +265,23 @@ async function handleMessage() {
     document.getElementById('judith-status').style.display = 'block';
 
     try {
-        // 1. BÚSQUEDA
         const foundData = findRelevantData(text);
         
         let systemMsg = "";
         
         if (foundData && foundData.length > 0) {
-            // Caso A: Datos encontrados
-            console.log("📊 Datos encontrados (Top 15):", foundData);
-            systemMsg = `[SISTEMA: El usuario busca esto. Te adjunto los datos REALES encontrados en la base de datos. RESPONDE USANDO ESTOS DATOS Y NO LOS EJEMPLOS DEL PROMPT]: ${JSON.stringify(foundData)}`;
+            console.log("📊 Datos filtrados encontrados:", foundData);
+            systemMsg = `[SISTEMA: El usuario busca esto. Datos REALES adjuntos. RECUERDA: NO DIGAS NÚMEROS DE STOCK, SOLO 'HAY', 'POCO' O 'AGOTADO'.]: ${JSON.stringify(foundData)}`;
         } else {
-            // Caso B: Sin datos nuevos -> Memoria
-            console.log("⚠️ No se encontraron datos nuevos, tirando de memoria.");
-            systemMsg = `[SISTEMA: La búsqueda en la base de datos no arrojó resultados nuevos para esta frase. 
-            - Si el usuario está pidiendo "más detalles" o "especificar" sobre lo anterior, USA TU MEMORIA del mensaje anterior y describe el producto a fondo.
-            - Si pide un producto nuevo y no está en la base de datos, di que no te consta esa referencia.]`;
+            systemMsg = `[SISTEMA: No hay coincidencias nuevas. Si pide detalles de lo anterior, usa memoria. Si pide algo nuevo y no está, di que no te consta.]`;
         }
 
-        // Añadir contexto
         chatHistory.push({ role: "system", content: systemMsg });
         chatHistory.push({ role: "user", content: text });
 
-        // Llamada
         const reply = await callOpenAI();
         chatHistory.push({ role: "assistant", content: reply });
 
-        // Limpieza de memoria (Max 15)
         if (chatHistory.length > 15) chatHistory = [chatHistory[0], ...chatHistory.slice(-14)];
 
         addMsg(reply, 'judith');
