@@ -1,4 +1,4 @@
-console.log("🔄 Cargando Judith v8.0 (Izquierda + Respuesta Directa)...");
+console.log("🔄 Cargando Judith v9.0 (Fix Estructuras + Búsqueda)...");
 
 // ==========================================
 // 1. CONFIGURACIÓN Y RUTAS
@@ -72,16 +72,18 @@ function findRelevantData(userQuery) {
     const q = userQuery.toLowerCase();
     
     // Palabras a ignorar para buscar mejor
-    const stopWords = ['el', 'la', 'los', 'las', 'un', 'una', 'de', 'del', 'que', 'precio', 'stock', 'tienes', 'cuanto', 'vale', 'quiero', 'necesito', 'hola', 'detalles', 'mas', 'especifica'];
+    const stopWords = ['el', 'la', 'los', 'las', 'un', 'una', 'de', 'del', 'que', 'precio', 'stock', 'tienes', 'cuanto', 'vale', 'quiero', 'necesito', 'hola', 'por', 'favor'];
     
     // Sacamos las palabras clave reales (ej: "cartel", "salida")
+    // NOTA: He quitado "detalles" y "especifica" de stopWords para que intente buscar si el usuario insiste,
+    // aunque la clave está en el prompt del sistema.
     const searchTerms = q.split(' ').filter(word => word.length > 2 && !stopWords.includes(word));
 
     // Si no hay palabras clave (ej: el usuario solo dice "dame más detalles"), 
-    // devolvemos null para que la IA tire de memoria y no de búsqueda nueva.
+    // devolvemos null para que la IA tire de memoria.
     if (searchTerms.length === 0) return null;
 
-    // Buscamos coincidencias estrictas
+    // Buscamos coincidencias
     const results = GLOBAL_DATA.filter(item => {
         const itemString = JSON.stringify(item).toLowerCase();
         return searchTerms.every(term => itemString.includes(term));
@@ -104,119 +106,47 @@ function getApiKey() {
 }
 
 // ==========================================
-// 5. CEREBRO IA (System Prompt Agresivo)
+// 5. CEREBRO IA (System Prompt Revisado)
 // ==========================================
 const SYSTEM_PROMPT = `
 Eres Judith, comercial de señalización.
 
 --- REGLAS DE ORO (CÚMPLELAS SIEMPRE) ---
 1. **UBICACIÓN:** El botón de chat está a la izquierda.
-2. **DATOS:** Recibirás un JSON con productos. ÚSALOS.
-Aquí tienes un ejemplo de la estructura de Stock.json para que tengas claro como acceder
-{
-  "Stock": [
-    {
-      "Artículo": 2,
-      "Nombre artículo": "Pallet 120x80 recuperado",
-      "Stock": 1174,
-      "Estado": "no"
-    },
-    {
-      "Artículo": 3,
-      "Nombre artículo": "Pallet 80x40 recuperado",
-      "Stock": 0,
-      "Estado": "no"
-    },
-    {
-      "Artículo": 4,
-      "Nombre artículo": "Pallet Americano Cajas",
-      "Stock": 879,
-      "Estado": "no"
-    },
-    {
-      "Artículo": 5,
-      "Nombre artículo": "Caja cartón conos pz-20 305x300x860 mm",
-      "Stock": 1476,
-      "Estado": "no"
-    },
-    {
-      "Artículo": 6,
-      "Nombre artículo": "EXTRA LIGD 23 BLANCO MANDRIL 100 GRAMOS",
-      "Stock": 240,
-      "Estado": "no"
-    },
-    {
-      "Artículo": 7,
-      "Nombre artículo": "PP SOLVENTE IMPRESO 48X 132 TRANSPARENTE 36 U/C",
-      "Stock": 1953,
-      "Estado": "no"
-    },
-    {
-      "Artículo": 101,
-      "Nombre artículo": "Cartel PVC 21x29 Fotolum. SALIDA FLECHA IZQ.",
-      "Stock": 43,
-      "Estado": "fab"
-    },
-    {
-      "Artículo": "0101A",
-      "Nombre artículo": "Cartel PVC 32x16 Fotolum Salida flecha derecha",
-      "Stock": -16,
-      "Estado": "fab"
-    },
-    {
-      "Artículo": "0101B",
-      "Nombre artículo": "Cartel PVC 64x32 Fotolum Salida flecha derecha",
-      "Stock": 0,
-      "Estado": "fab"
-    },
-    En estado hay 4 diferentes. si (artículo que se puede decir si hay stock o no), 
-    no (artículo que NO se puede decir si hay stock o no), 
-    fab (entrega 3-4 días aprox) y 
-    fab2 (entrega 15 días aprox)
-
-    Y aquí te paso un ejemplo de la estructura de las tarifas para que tengas claro cómo acceder:
-    {
-  "Tarifa_General": [
-    {
-      "Referencia": "101",
-      "Descripcion": "Cartel PVC 21x29 Fotolum. SALIDA FLECHA IZQ.",
-      "PRECIO_ESTANDAR": 2.6,
-      "NETOS": 2.1,
-      "CONDICIONES_NETO": "Neto: 2,10 € (a partir de 1 uds.)"
-    },
-    {
-      "Referencia": "0101A",
-      "Descripcion": "Cartel PVC 32x16 Fotolum Salida flecha derecha",
-      "PRECIO_ESTANDAR": 2.25,
-      "NETOS": null,
-      "CONDICIONES_NETO": "Sin precio neto"
-    },
-    {
-      "Referencia": "0101B",
-      "Descripcion": "Cartel PVC 64x32 Fotolum Salida flecha derecha",
-      "PRECIO_ESTANDAR": 4.48,
-      "NETOS": null,
-      "CONDICIONES_NETO": "Sin precio neto"
-    },
-    {
-      "Referencia": "0101C",
-      "Descripcion": "Cartel PVC 96x48 Fotolum Salida flecha derecha",
-      "PRECIO_ESTANDAR": 8.96,
-      "NETOS": null,
-      "CONDICIONES_NETO": "Sin precio neto"
-    },
-
+2. **DATOS:** Recibirás un JSON con productos REALES basados en la búsqueda del usuario.
 3. **NO ESPERES:** 
    - PROHIBIDO decir: "Déjame consultarlo", "Un momento", "Voy a mirar".
-   - Tienes los datos delante de tus narices en el contexto. ¡DÁLOS YA!
-   - Si el usuario pide detalles, lee la descripción del JSON y dásela.
-4. **STOCK:**
-   - NUNCA digas el número (ej: 43). 
-   - Di: "Hay de sobra", "Quedan pocos" o "Agotado".
-5. **PRECIOS:**
-   - Prioriza siempre el PRECIO NETO si existe.
+   - Tienes los datos delante. ¡DÁLOS YA!
 
-Sé directa. Si te preguntan precio, da el precio. No saludes otra vez.
+--- INSTRUCCIONES DE ESTRUCTURA DE DATOS ---
+A continuación te muestro EJEMPLOS de cómo son los datos. 
+⚠️ ATENCIÓN: Estos datos de abajo son SOLO EJEMPLOS para que entiendas los nombres de las columnas (Claves). NO SON EL INVENTARIO REAL. El inventario real te llegará en el mensaje del sistema cuando el usuario busque algo.
+
+**EJEMPLO DE ESTRUCTURA STOCK (NO USAR VALORES, SOLO VER CLAVES):**
+{
+  "Artículo": "(Código)", "Nombre artículo": "(Descripción)", "Stock": (Numero), "Estado": "no/fab/si"
+}
+NOTA SOBRE ESTADO:
+- 'si': Se puede decir stock.
+- 'no': Se puede decir stock.
+- 'fab': Entrega 3-4 días aprox.
+- 'fab2': Entrega 15 días aprox.
+
+**EJEMPLO DE ESTRUCTURA TARIFAS (NO USAR VALORES, SOLO VER CLAVES):**
+{
+  "Referencia": "(Ref)", "Descripcion": "(Desc)", "PRECIO_ESTANDAR": (Num), "NETOS": (Num/Null)
+}
+
+--- REGLAS DE RESPUESTA ---
+1. Si te preguntan PRECIO: Busca en el contexto que te paso. Prioriza "NETOS". Si no hay neto, da "PRECIO_ESTANDAR".
+2. Si te preguntan STOCK: 
+   - NUNCA digas el número exacto.
+   - >50: "Hay de sobra".
+   - <50: "Quedan pocas".
+   - 0: "Agotado".
+3. Si te piden DETALLES: Lee la descripción completa del producto que encontraste en el contexto.
+
+Sé directa. No saludes en cada mensaje.
 `;
 
 // ==========================================
@@ -237,7 +167,7 @@ function createInterface() {
     const wrapper = document.createElement('div');
     wrapper.id = 'judith-wrapper';
     
-    // CAMBIO: left: 20px en lugar de right: 20px
+    // UI a la izquierda (Left)
     wrapper.innerHTML = `
         <div id="judith-launcher" style="
             position: fixed; bottom: 20px; left: 20px; width: 70px; height: 70px;
@@ -269,7 +199,7 @@ function createInterface() {
 
             <div id="judith-content" style="flex: 1; padding: 15px; overflow-y: auto; background: #f0f2f5;">
                 <div style="background: white; padding: 12px; border-radius: 12px; margin-bottom: 10px; width: 85%; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
-                    👋 Hola. Ya he cargado las tarifas. ¿Qué buscamos?
+                    👋 Hola. Catálogo cargado. ¿Qué referencia o producto buscamos?
                 </div>
             </div>
 
@@ -353,28 +283,32 @@ async function handleMessage() {
     document.getElementById('judith-status').style.display = 'block';
 
     try {
-        // 1. Buscamos datos NUEVOS solo si hay palabras clave
+        // 1. BÚSQUEDA
         const foundData = findRelevantData(text);
         
         let systemMsg = "";
         
         if (foundData && foundData.length > 0) {
-            // Caso A: Hemos encontrado datos nuevos. Se los damos a la IA.
-            console.log("📊 Datos encontrados:", foundData);
-            systemMsg = `[SISTEMA: El usuario pregunta esto. AQUÍ TIENES LOS DATOS. RESPONDE YA CON ELLOS, NO DIGAS QUE VAS A MIRAR]: ${JSON.stringify(foundData)}`;
+            // Caso A: Datos encontrados
+            console.log("📊 Datos encontrados (Top 15):", foundData);
+            systemMsg = `[SISTEMA: El usuario busca esto. Te adjunto los datos REALES encontrados en la base de datos. RESPONDE USANDO ESTOS DATOS Y NO LOS EJEMPLOS DEL PROMPT]: ${JSON.stringify(foundData)}`;
         } else {
-            // Caso B: No hay datos nuevos (quizás pide "más detalles" de lo anterior).
-            // Le decimos que use su memoria.
-            systemMsg = `[SISTEMA: No hay nuevas coincidencias en la base de datos para esta frase exacta. Si el usuario pide detalles de lo anterior, USA TU MEMORIA y responde. Si pide algo nuevo que no encuentras, pregunta referencia.]`;
+            // Caso B: Sin datos nuevos -> Memoria
+            console.log("⚠️ No se encontraron datos nuevos, tirando de memoria.");
+            systemMsg = `[SISTEMA: La búsqueda en la base de datos no arrojó resultados nuevos para esta frase. 
+            - Si el usuario está pidiendo "más detalles" o "especificar" sobre lo anterior, USA TU MEMORIA del mensaje anterior y describe el producto a fondo.
+            - Si pide un producto nuevo y no está en la base de datos, di que no te consta esa referencia.]`;
         }
 
+        // Añadir contexto
         chatHistory.push({ role: "system", content: systemMsg });
         chatHistory.push({ role: "user", content: text });
 
+        // Llamada
         const reply = await callOpenAI();
         chatHistory.push({ role: "assistant", content: reply });
 
-        // Limpieza de memoria
+        // Limpieza de memoria (Max 15)
         if (chatHistory.length > 15) chatHistory = [chatHistory[0], ...chatHistory.slice(-14)];
 
         addMsg(reply, 'judith');
@@ -432,7 +366,7 @@ async function callOpenAI() {
         body: JSON.stringify({
             model: "gpt-3.5-turbo",
             messages: chatHistory,
-            temperature: 0.2 // Muy baja para que no se invente nada
+            temperature: 0.2
         })
     });
     
