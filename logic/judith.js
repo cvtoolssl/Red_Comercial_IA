@@ -1,14 +1,13 @@
-console.log("🔄 Cargando Judith v7.0 (Rutas SRC corregidas)...");
+console.log("🔄 Cargando Judith v8.0 (Izquierda + Respuesta Directa)...");
 
 // ==========================================
-// 1. CONFIGURACIÓN Y RUTAS DE ARCHIVOS
+// 1. CONFIGURACIÓN Y RUTAS
 // ==========================================
 
-// ⚠️ PEGA AQUÍ TU CLAVE SI NO QUIERES QUE TE LA PIDA
-// O déjalo así y te la pedirá al abrir el chat.
+// ⚠️ Tu API KEY (Opcional, si la dejas vacía la pedirá al usuario)
 const API_KEY_HARDCODED = ""; 
 
-// 📂 LISTA DE TUS ARCHIVOS JSON (Rutas desde la raíz donde está index.html)
+// 📂 TUS ARCHIVOS (Rutas relativas desde index.html)
 const FILES_TO_LOAD = [
     'src/Stock.json',
     'src/Tarifa_General.json',
@@ -22,18 +21,15 @@ const FILES_TO_LOAD = [
     'src/Tarifa_Synergas.json'
 ];
 
-// Aquí guardaremos todos los datos cargados en memoria RAM
 let GLOBAL_DATA = [];
 let chatHistory = [];
 
 // ==========================================
-// 2. MOTOR DE CARGA DE DATOS (Big Data)
+// 2. CARGA DE DATOS (CATÁLOGO COMPLETO)
 // ==========================================
 
 async function loadAllData() {
-    console.log("📂 Iniciando carga de base de datos desde carpeta SRC...");
-    
-    // Si la interfaz ya existe, mostramos estado
+    console.log("📂 Iniciando carga de base de datos...");
     const statusDiv = document.getElementById('judith-status');
     if(statusDiv) { statusDiv.style.display = 'block'; statusDiv.innerText = "Cargando catálogo..."; }
 
@@ -41,125 +37,196 @@ async function loadAllData() {
         const promises = FILES_TO_LOAD.map(file => 
             fetch(file)
                 .then(res => {
-                    if (!res.ok) throw new Error(`Error ${res.status} leyendo ${file}`);
+                    if (!res.ok) return {}; 
                     return res.json();
                 })
                 .then(data => {
-                    // Detectar la clave principal (ej: "Stock" o "Tarifa_General")
                     const key = Object.keys(data)[0]; 
                     const arrayData = data[key];
-                    
                     if (Array.isArray(arrayData)) {
-                        // Añadimos el origen para saber de qué archivo viene cada dato
+                        // Añadimos origen para que la IA sepa de qué tarifa viene
                         return arrayData.map(item => ({ ...item, _origen: file }));
-                    } else {
-                        return [];
                     }
-                })
-                .catch(err => {
-                    console.warn(`⚠️ No se pudo cargar ${file}. Verifica que el nombre y la ruta sean exactos.`, err);
                     return [];
                 })
+                .catch(err => [])
         );
 
         const results = await Promise.all(promises);
-        
-        // Aplanar: Convertimos lista de listas en una sola lista gigante
         GLOBAL_DATA = results.flat();
         
-        console.log(`✅ Base de datos lista: ${GLOBAL_DATA.length} productos cargados.`);
+        console.log(`✅ Base de datos lista: ${GLOBAL_DATA.length} productos.`);
         if(statusDiv) { statusDiv.style.display = 'none'; }
 
     } catch (error) {
-        console.error("❌ Error crítico cargando datos:", error);
+        console.error("Error cargando datos:", error);
     }
 }
 
 // ==========================================
-// 3. MOTOR DE BÚSQUEDA (El filtro inteligente)
+// 3. MOTOR DE BÚSQUEDA
 // ==========================================
 
 function findRelevantData(userQuery) {
     if (!GLOBAL_DATA.length) return null;
-
     const q = userQuery.toLowerCase();
     
-    // Palabras que ignoramos para la búsqueda
-    const stopWords = ['el', 'la', 'los', 'las', 'un', 'una', 'de', 'del', 'que', 'precio', 'stock', 'tienes', 'cuanto', 'vale', 'quiero', 'necesito', 'hola'];
+    // Palabras a ignorar para buscar mejor
+    const stopWords = ['el', 'la', 'los', 'las', 'un', 'una', 'de', 'del', 'que', 'precio', 'stock', 'tienes', 'cuanto', 'vale', 'quiero', 'necesito', 'hola', 'detalles', 'mas', 'especifica'];
     
-    // Extraemos palabras clave útiles (ej: "cartel flecha")
+    // Sacamos las palabras clave reales (ej: "cartel", "salida")
     const searchTerms = q.split(' ').filter(word => word.length > 2 && !stopWords.includes(word));
 
+    // Si no hay palabras clave (ej: el usuario solo dice "dame más detalles"), 
+    // devolvemos null para que la IA tire de memoria y no de búsqueda nueva.
     if (searchTerms.length === 0) return null;
 
-    // Filtramos el array gigante
+    // Buscamos coincidencias estrictas
     const results = GLOBAL_DATA.filter(item => {
-        // Convertimos todo el objeto a string para buscar dentro
         const itemString = JSON.stringify(item).toLowerCase();
-        // Deben coincidir TODAS las palabras clave (Búsqueda estricta)
         return searchTerms.every(term => itemString.includes(term));
     });
 
-    // Devolvemos solo los 10 mejores para no saturar a la IA
-    return results.slice(0, 10);
+    return results.slice(0, 15); // Devolvemos hasta 15 resultados
 }
 
 // ==========================================
-// 4. GESTIÓN DE CREDENCIALES
+// 4. API KEY
 // ==========================================
 function getApiKey() {
     if (API_KEY_HARDCODED) return API_KEY_HARDCODED;
-    
     let key = sessionStorage.getItem("OPENAI_API_KEY");
     if (!key || key === "null") {
-        key = prompt("🔑 Introduce tu API Key de OpenAI para empezar:");
+        key = prompt("🔑 Introduce tu API Key de OpenAI:");
         if (key) sessionStorage.setItem("OPENAI_API_KEY", key.trim());
     }
     return key;
 }
 
 // ==========================================
-// 5. CEREBRO IA (System Prompt)
+// 5. CEREBRO IA (System Prompt Agresivo)
 // ==========================================
 const SYSTEM_PROMPT = `
-Eres Judith, comercial experta de una empresa de señalización y suministros.
-Tu trabajo es atender clientes, comprobar stock y dar precios.
+Eres Judith, comercial de señalización.
 
---- TU PERSONALIDAD ---
-- Idioma: ESPAÑOL DE ESPAÑA (Castellano). Usa expresiones naturales ("fenomenal", "ahora te lo miro").
-- Tono: Simpática, profesional y eficiente.
-- Nunca inventes datos. Si no sabes algo, dilo.
+--- REGLAS DE ORO (CÚMPLELAS SIEMPRE) ---
+1. **UBICACIÓN:** El botón de chat está a la izquierda.
+2. **DATOS:** Recibirás un JSON con productos. ÚSALOS.
+Aquí tienes un ejemplo de la estructura de Stock.json para que tengas claro como acceder
+{
+  "Stock": [
+    {
+      "Artículo": 2,
+      "Nombre artículo": "Pallet 120x80 recuperado",
+      "Stock": 1174,
+      "Estado": "no"
+    },
+    {
+      "Artículo": 3,
+      "Nombre artículo": "Pallet 80x40 recuperado",
+      "Stock": 0,
+      "Estado": "no"
+    },
+    {
+      "Artículo": 4,
+      "Nombre artículo": "Pallet Americano Cajas",
+      "Stock": 879,
+      "Estado": "no"
+    },
+    {
+      "Artículo": 5,
+      "Nombre artículo": "Caja cartón conos pz-20 305x300x860 mm",
+      "Stock": 1476,
+      "Estado": "no"
+    },
+    {
+      "Artículo": 6,
+      "Nombre artículo": "EXTRA LIGD 23 BLANCO MANDRIL 100 GRAMOS",
+      "Stock": 240,
+      "Estado": "no"
+    },
+    {
+      "Artículo": 7,
+      "Nombre artículo": "PP SOLVENTE IMPRESO 48X 132 TRANSPARENTE 36 U/C",
+      "Stock": 1953,
+      "Estado": "no"
+    },
+    {
+      "Artículo": 101,
+      "Nombre artículo": "Cartel PVC 21x29 Fotolum. SALIDA FLECHA IZQ.",
+      "Stock": 43,
+      "Estado": "fab"
+    },
+    {
+      "Artículo": "0101A",
+      "Nombre artículo": "Cartel PVC 32x16 Fotolum Salida flecha derecha",
+      "Stock": -16,
+      "Estado": "fab"
+    },
+    {
+      "Artículo": "0101B",
+      "Nombre artículo": "Cartel PVC 64x32 Fotolum Salida flecha derecha",
+      "Stock": 0,
+      "Estado": "fab"
+    },
+    En estado hay 4 diferentes. si (artículo que se puede decir si hay stock o no), 
+    no (artículo que NO se puede decir si hay stock o no), 
+    fab (entrega 3-4 días aprox) y 
+    fab2 (entrega 15 días aprox)
 
---- REGLAS DE NEGOCIO (ESTRICTO) ---
-1. **DATOS:** Recibirás un bloque de texto llamado "CONTEXTO DE DATOS". Solo puedes dar precios o stock que aparezcan ahí.
-2. **STOCK:**
-   - NUNCA digas el número exacto.
-   - Si Stock > 50: Di "Sí, tenemos stock de sobra".
-   - Si Stock < 50: Di "Nos quedan pocas unidades".
-   - Si Stock = 0: Di "Ahora mismo está agotado".
-3. **PRECIOS:**
-   - Si el dato tiene campo "NETOS" o "NETO", ese es el precio bueno. Ofrécelo como oferta.
-   - Si no, da el "PRECIO_ESTANDAR".
-   - Si aparecen varias tarifas, pregunta al cliente si pertenece a algún grupo (Cecofersa, BigMat, etc.) o dale el precio general.
-4. **PRODUCTOS:**
-   - VALLAS: Son vallas publicitarias grandes.
-   - CARTELES: Señalización pequeña.
+    Y aquí te paso un ejemplo de la estructura de las tarifas para que tengas claro cómo acceder:
+    {
+  "Tarifa_General": [
+    {
+      "Referencia": "101",
+      "Descripcion": "Cartel PVC 21x29 Fotolum. SALIDA FLECHA IZQ.",
+      "PRECIO_ESTANDAR": 2.6,
+      "NETOS": 2.1,
+      "CONDICIONES_NETO": "Neto: 2,10 € (a partir de 1 uds.)"
+    },
+    {
+      "Referencia": "0101A",
+      "Descripcion": "Cartel PVC 32x16 Fotolum Salida flecha derecha",
+      "PRECIO_ESTANDAR": 2.25,
+      "NETOS": null,
+      "CONDICIONES_NETO": "Sin precio neto"
+    },
+    {
+      "Referencia": "0101B",
+      "Descripcion": "Cartel PVC 64x32 Fotolum Salida flecha derecha",
+      "PRECIO_ESTANDAR": 4.48,
+      "NETOS": null,
+      "CONDICIONES_NETO": "Sin precio neto"
+    },
+    {
+      "Referencia": "0101C",
+      "Descripcion": "Cartel PVC 96x48 Fotolum Salida flecha derecha",
+      "PRECIO_ESTANDAR": 8.96,
+      "NETOS": null,
+      "CONDICIONES_NETO": "Sin precio neto"
+    },
 
-Mantén la conversación fluida. No saludes en cada mensaje.
+3. **NO ESPERES:** 
+   - PROHIBIDO decir: "Déjame consultarlo", "Un momento", "Voy a mirar".
+   - Tienes los datos delante de tus narices en el contexto. ¡DÁLOS YA!
+   - Si el usuario pide detalles, lee la descripción del JSON y dásela.
+4. **STOCK:**
+   - NUNCA digas el número (ej: 43). 
+   - Di: "Hay de sobra", "Quedan pocos" o "Agotado".
+5. **PRECIOS:**
+   - Prioriza siempre el PRECIO NETO si existe.
+
+Sé directa. Si te preguntan precio, da el precio. No saludes otra vez.
 `;
 
 // ==========================================
-// 6. INTERFAZ GRÁFICA (UI)
+// 6. UI (IZQUIERDA)
 // ==========================================
 
 function initJudith() {
-    // Evitar duplicados
     if (document.getElementById('judith-wrapper')) return;
-    
     createInterface();
-    loadAllData(); // Cargamos los datos al arrancar
-    
-    // Iniciamos memoria
+    loadAllData();
     chatHistory = [{ role: "system", content: SYSTEM_PROMPT }];
 }
 
@@ -170,10 +237,10 @@ function createInterface() {
     const wrapper = document.createElement('div');
     wrapper.id = 'judith-wrapper';
     
+    // CAMBIO: left: 20px en lugar de right: 20px
     wrapper.innerHTML = `
-        <!-- BOTÓN DE APERTURA -->
         <div id="judith-launcher" style="
-            position: fixed; bottom: 20px; right: 20px; width: 70px; height: 70px;
+            position: fixed; bottom: 20px; left: 20px; width: 70px; height: 70px;
             background: linear-gradient(135deg, #0078d4, #005a9e);
             color: white; border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
@@ -182,43 +249,37 @@ function createInterface() {
             transition: transform 0.3s;
         ">👩‍💼</div>
 
-        <!-- VENTANA FLOTANTE -->
         <div id="judith-modal" style="
-            display: none; position: fixed; bottom: 100px; right: 20px;
+            display: none; position: fixed; bottom: 100px; left: 20px;
             width: 380px; height: 600px; background: #fff;
             border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.25);
             z-index: 999999; flex-direction: column; overflow: hidden;
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            border: 1px solid #e1e4e8;
+            font-family: 'Segoe UI', sans-serif; border: 1px solid #e1e4e8;
         ">
-            <!-- Header -->
             <div style="background: #0078d4; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center;">
                 <div style="display:flex; align-items:center; gap:10px;">
                     <span style="font-size:24px;">👩‍💼</span>
                     <div>
                         <div style="font-weight:bold; font-size:16px;">Judith</div>
-                        <div style="font-size:11px; opacity:0.9;">Ventas y Stock</div>
+                        <div style="font-size:11px; opacity:0.9;">Comercial Virtual</div>
                     </div>
                 </div>
                 <span id="close-judith" style="cursor: pointer; font-size: 24px;">&times;</span>
             </div>
 
-            <!-- Chat Content -->
             <div id="judith-content" style="flex: 1; padding: 15px; overflow-y: auto; background: #f0f2f5;">
-                <div style="background: white; padding: 12px; border-radius: 12px; margin-bottom: 10px; width: fit-content; max-width: 85%; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
-                    👋 ¡Hola! Tengo acceso a todas las tarifas y el stock. ¿Qué necesitas consultar?
+                <div style="background: white; padding: 12px; border-radius: 12px; margin-bottom: 10px; width: 85%; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                    👋 Hola. Ya he cargado las tarifas. ¿Qué buscamos?
                 </div>
             </div>
 
-            <!-- Estado -->
             <div id="judith-status" style="display:none; padding: 8px; font-size: 11px; color: #666; text-align:center; background:#f0f2f5;">
-                Buscando en base de datos...
+                Consultando...
             </div>
 
-            <!-- Input Area -->
             <div style="padding: 15px; background: white; border-top: 1px solid #eee; display: flex; gap: 8px; align-items: center;">
                 <button id="mic-btn" style="width: 42px; height: 42px; background: #d83b01; color: white; border: none; border-radius: 50%; cursor: pointer; font-size: 20px; display:flex; align-items:center; justify-content:center;">🎙️</button>
-                <input type="text" id="user-input" placeholder="Escribe aquí..." style="flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 20px; outline: none; background: #f9f9f9;">
+                <input type="text" id="user-input" placeholder="Pregunta..." style="flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 20px; outline: none; background: #f9f9f9;">
                 <button id="send-btn" style="width: 42px; height: 42px; background: #0078d4; color: white; border: none; border-radius: 50%; cursor: pointer; font-size: 18px; display:flex; align-items:center; justify-content:center;">➤</button>
             </div>
         </div>
@@ -228,10 +289,6 @@ function createInterface() {
     setupEvents();
 }
 
-// ==========================================
-// 7. GESTIÓN DE EVENTOS (Clicks, Voz, Enter)
-// ==========================================
-
 function setupEvents() {
     const launcher = document.getElementById('judith-launcher');
     const modal = document.getElementById('judith-modal');
@@ -240,32 +297,26 @@ function setupEvents() {
     const micBtn = document.getElementById('mic-btn');
     const input = document.getElementById('user-input');
 
-    // Abrir ventana
     launcher.addEventListener('click', () => {
         const apiKey = getApiKey();
         if(!apiKey) return;
-        
         modal.style.display = 'flex';
         launcher.style.display = 'none';
-        
-        // Despertar voz en móviles
         if (window.speechSynthesis) window.speechSynthesis.resume();
         input.focus();
     });
 
-    // Cerrar ventana
     closeBtn.addEventListener('click', () => {
         modal.style.display = 'none';
         launcher.style.display = 'flex';
         window.speechSynthesis.cancel();
     });
 
-    // Enviar
     const send = () => handleMessage();
     sendBtn.addEventListener('click', send);
     input.addEventListener('keypress', (e) => { if (e.key === 'Enter') send(); });
 
-    // Micrófono (Reconocimiento de voz)
+    // Voz
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
@@ -273,27 +324,23 @@ function setupEvents() {
         recognition.continuous = false;
         
         micBtn.addEventListener('click', () => {
-            micBtn.style.background = '#00cc00'; // Verde indicando ON
+            micBtn.style.background = '#00cc00'; 
             recognition.start();
         });
 
         recognition.onresult = (event) => {
-            const text = event.results[0][0].transcript;
-            input.value = text;
-            micBtn.style.background = '#d83b01'; // Vuelta a rojo
-            send(); // Enviar automáticamente
+            input.value = event.results[0][0].transcript;
+            micBtn.style.background = '#d83b01';
+            send();
         };
-        
-        recognition.onerror = () => { micBtn.style.background = '#d83b01'; };
         recognition.onend = () => { micBtn.style.background = '#d83b01'; };
-
     } else {
         micBtn.style.display = 'none';
     }
 }
 
 // ==========================================
-// 8. LÓGICA PRINCIPAL (CONVERSACIÓN)
+// 7. LÓGICA PRINCIPAL (Fluida)
 // ==========================================
 
 async function handleMessage() {
@@ -303,46 +350,41 @@ async function handleMessage() {
 
     addMsg(text, 'user');
     input.value = '';
-    
-    const status = document.getElementById('judith-status');
-    status.style.display = 'block';
+    document.getElementById('judith-status').style.display = 'block';
 
     try {
-        // A. BUSCAMOS DATOS LOCALMENTE
+        // 1. Buscamos datos NUEVOS solo si hay palabras clave
         const foundData = findRelevantData(text);
-        let contextInfo = "";
+        
+        let systemMsg = "";
         
         if (foundData && foundData.length > 0) {
-            console.log("📊 Encontrado:", foundData);
-            contextInfo = `[SISTEMA: El usuario pregunta sobre esto. Aquí tienes los datos REALES de la base de datos. Úsalos para responder]: ${JSON.stringify(foundData)}`;
+            // Caso A: Hemos encontrado datos nuevos. Se los damos a la IA.
+            console.log("📊 Datos encontrados:", foundData);
+            systemMsg = `[SISTEMA: El usuario pregunta esto. AQUÍ TIENES LOS DATOS. RESPONDE YA CON ELLOS, NO DIGAS QUE VAS A MIRAR]: ${JSON.stringify(foundData)}`;
         } else {
-            contextInfo = "[SISTEMA: No se han encontrado productos exactos con esas palabras clave en la base de datos JSON. Si el usuario pide un producto, pídele que especifique más o la referencia. Si es charla normal, responde normal.]";
+            // Caso B: No hay datos nuevos (quizás pide "más detalles" de lo anterior).
+            // Le decimos que use su memoria.
+            systemMsg = `[SISTEMA: No hay nuevas coincidencias en la base de datos para esta frase exacta. Si el usuario pide detalles de lo anterior, USA TU MEMORIA y responde. Si pide algo nuevo que no encuentras, pregunta referencia.]`;
         }
 
-        // B. AÑADIMOS CONTEXTO A LA CONVERSACIÓN
-        chatHistory.push({ role: "system", content: contextInfo });
+        chatHistory.push({ role: "system", content: systemMsg });
         chatHistory.push({ role: "user", content: text });
 
-        // C. LLAMADA A LA API
         const reply = await callOpenAI();
-
-        // D. GUARDAMOS RESPUESTA
         chatHistory.push({ role: "assistant", content: reply });
 
-        // Limpieza de memoria (guardar solo ultimos 10 mensajes para no gastar tokens)
-        if (chatHistory.length > 12) {
-            chatHistory = [chatHistory[0], ...chatHistory.slice(-10)];
-        }
+        // Limpieza de memoria
+        if (chatHistory.length > 15) chatHistory = [chatHistory[0], ...chatHistory.slice(-14)];
 
-        // E. MOSTRAR Y HABLAR
         addMsg(reply, 'judith');
         speak(reply);
 
     } catch (e) {
         console.error(e);
-        addMsg("Error de conexión o configuración: " + e.message, 'judith');
+        addMsg("Error: " + e.message, 'judith');
     } finally {
-        status.style.display = 'none';
+        document.getElementById('judith-status').style.display = 'none';
     }
 }
 
@@ -356,7 +398,6 @@ function addMsg(text, role) {
     div.style.marginBottom = '8px';
     div.style.maxWidth = '85%';
     div.style.wordWrap = 'break-word';
-    div.style.lineHeight = '1.5';
 
     if (isUser) {
         div.style.background = '#0078d4';
@@ -378,13 +419,9 @@ function addMsg(text, role) {
     content.scrollTop = content.scrollHeight;
 }
 
-// ==========================================
-// 9. API DE OPENAI
-// ==========================================
-
 async function callOpenAI() {
     const apiKey = getApiKey();
-    if (!apiKey) throw new Error("API Key requerida");
+    if (!apiKey) throw new Error("Falta API Key");
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
@@ -395,7 +432,7 @@ async function callOpenAI() {
         body: JSON.stringify({
             model: "gpt-3.5-turbo",
             messages: chatHistory,
-            temperature: 0.3 // Precisión alta
+            temperature: 0.2 // Muy baja para que no se invente nada
         })
     });
     
@@ -404,29 +441,14 @@ async function callOpenAI() {
     return data.choices[0].message.content;
 }
 
-// ==========================================
-// 10. SÍNTESIS DE VOZ (ESPAÑOL ESPAÑA)
-// ==========================================
-
 function speak(text) {
     if (!window.speechSynthesis) return;
-    
     window.speechSynthesis.cancel();
-    
-    // Limpieza de caracteres raros para lectura fluida
-    const cleanText = text.replace(/[*_]/g, '').replace(/https?:\/\/\S+/g, 'enlace');
-
-    const u = new SpeechSynthesisUtterance(cleanText);
+    const clean = text.replace(/[*_]/g, '').replace(/https?:\/\/\S+/g, 'enlace');
+    const u = new SpeechSynthesisUtterance(clean);
     u.lang = 'es-ES';
     u.rate = 1.1; 
-    u.pitch = 1.05;
-
-    // Intentar forzar voz española de Google
-    const voices = window.speechSynthesis.getVoices();
-    const voiceES = voices.find(v => v.lang === 'es-ES' && (v.name.includes('Google') || v.name.includes('Microsoft'))) || 
-                    voices.find(v => v.lang.startsWith('es'));
-    
-    if (voiceES) u.voice = voiceES;
-
+    const v = window.speechSynthesis.getVoices().find(v => v.lang === 'es-ES' && (v.name.includes('Google') || v.name.includes('Microsoft'))) || window.speechSynthesis.getVoices().find(v => v.lang.startsWith('es'));
+    if (v) u.voice = v;
     window.speechSynthesis.speak(u);
 }
